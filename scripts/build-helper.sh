@@ -52,11 +52,18 @@ NOTE:	Build name order corresponds to crossdev target order; number of each must
 	exit
 }
 
-#NOTE: For checks later on. DO NOT TOUCH
+# NOTE: For checks later on. DO NOT TOUCH
 export PRIMARY_BUILD="yes"
 export FIRST_BUILD="no"
 
-#NOTE: If you choose to customize these, be sure to know what you are changing!
+# NOTE: If you choose to customize these, be sure to know what you are changing!
+# check if user disabled tmux support
+if [ "${TERM_PROGRAM}" = "tmux" ]
+then
+	export TMUX_MODE="${TMUX_MODE-on}"
+else
+	export TMUX_MODE="off"
+fi
 # gentoo mirror to use for fetching initial chroot tarball
 export TARBALL_MIRROR="${TARBALL_MIRROR:-https://gentoo.osuosl.org}"
 # path to this script
@@ -84,7 +91,7 @@ export TMP_SIZE="${TMP_SIZE:-24G}"
 # make -jN for kernel build, ideally reflecting contents of host chroot /etc/portage
 export BUILD_JOBS="${BUILD_JOBS:-`nproc`}"
 
-#NOTE: These you should not touch.
+# NOTE: These you should not touch.
 # first target tuple from command input
 export CROSSDEV_TARGET="`echo ${1} | cut -d ':' -f 1`"
 # first target build name from command input
@@ -256,6 +263,7 @@ build_helper_mounts() {
 }
 
 # TODO: allow regular mount/filesystem rather than squashfs/tmpfs/overlayfs
+# NOTE: done?
 # mount build-helper directory structure at expected path with chosen mount type
 mkdir "${MNT_PATH}"
 if [ "${MNT_TYPE}" = "bind" ] && [ ! -e "${BUILD_HELPER_TREE}/work/${BUILD_DATE}" ]
@@ -384,9 +392,12 @@ do
 	fi
 
 	# TODO: add tmux support
+	# NOTE: done?
 	# enter target chroot and run target build script
-	chroot . /bin/bash -x -e ${BUILD_HELPER_TREE}/scripts/build-helper-chroot.sh ${1} 2>&1 \
-		| tee ${BUILD_HELPER_TREE}/logs/${BUILD_NAME}-${BUILD_DATE}-chroot.log &
+	$([ "${TMUX_MODE}" = "on" ] && echo -n "tmux new-window -n \"${CROSSDEV_TARGET}.${BUILD_NAME}\" \"")\
+		chroot . /bin/bash -x -e ${BUILD_HELPER_TREE}/scripts/build-helper-chroot.sh ${1} 2>&1 \
+		| tee ${BUILD_HELPER_TREE}/logs/${BUILD_NAME}-${BUILD_DATE}-chroot.log\
+		$( ([ "${TMUX_MODE}" = "on" ] && echo -n \") || echo -n " &")
 
 	# bind mount for target inclusion for archiving
 	if [ "${PRIMARY_BUILD}" = "no" ]
@@ -420,7 +431,7 @@ do
 	done
 done
 
-#NOTE: Keep this out of the foreach loops
+# NOTE: Keep this out of the foreach loops
 cp -a ${MNT_PATH}/m/var/lib/portage/world ${HOST_CONF}/worlds/base
 
 # unify mounted work into build history
@@ -442,6 +453,7 @@ fi
 cd
 
 # tear down build environment mounts
+# TODO: ask user whether or not they want to unmount the work rather than automatically doing so
 for i in `cat /proc/mounts | grep ${MNT_PATH} | sed -e 's/^.* \//\//' -e 's/ .*$//' | tac`; do umount ${i}; done
 
 if [ "${MNT_TYPE}" = "tmpfs" ]
