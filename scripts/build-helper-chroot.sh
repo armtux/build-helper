@@ -672,7 +672,7 @@ cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/squashfs
 mksquashfs . ../initramfs/base -comp xz -b 1048576 -Xdict-size 1048576
 
 # separate userland base packages from kernel binary if triggered by target configuration
-if [ -e /build-helper/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ]
+if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ]
 then
 	mv ../initramfs/base ../base-${BUILD_DATE}
 fi
@@ -685,14 +685,14 @@ cd ../squashfs.extra
 mksquashfs . ../initramfs/extra -comp xz -b 1048576 -Xdict-size 1048576
 
 # separate userland extra packages from kernel binary if triggered by target configuration
-if [ -e /build-helper/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
+if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
 then
 	mv ../initramfs/extra ../extra-${BUILD_DATE}
 fi
 
 # rebuild kernel with updated initramfs including userland if triggered by target configuration
 cd ../linux
-if [ ! -e /build-helper/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ] && [ ! -e /build-helper/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
+if [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ] && [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
 then
 	rm usr/initramfs_data.cpio
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
@@ -702,7 +702,7 @@ fi
 mkdir -p "../${BUILD_NAME}-${BUILD_DATE}/EFI/boot"
 
 # copy final build kernel and boot files to output directory (raspberry pi arm / arm64)
-if [ "`grep 'sys-kernel/raspberrypi-sources' /build-helper/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
+if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 then
 	if [ ! -e ../${BUILD_NAME}-${BUILD_DATE}/boot/overlays ]
 	then
@@ -722,10 +722,10 @@ else
 fi
 
 # copy userland base packages to output directory if separate from kernel
-if [ -e /build-helper/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ]
+if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ]
 then
 	# raspberry pi location
-	if [ "`grep 'sys-kernel/raspberrypi-sources' /build-helper/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
+	if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 	then
 		cp ../base-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/boot/base
 	# x86_64 uefi location
@@ -735,10 +735,10 @@ then
 fi
 
 # copy userland extra packages to output directory if separate from kernel
-if [ -e /build-helper/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
+if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
 then
 	# raspberry pi location
-	if [ "`grep 'sys-kernel/raspberrypi-sources' /build-helper/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
+	if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 	then
 		cp ../extra-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/boot/extra
 	# x86_64 uefi location
@@ -759,7 +759,7 @@ mv ../config .config
 #TODO: Implement for non-uefi and other architectures
 mkdir -p "${BUILD_DEST}"
 # raspberry pi support
-if [ "`grep 'sys-kernel/raspberrypi-sources' /build-helper/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
+if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 then
 	cp -r ../${BUILD_NAME}-${BUILD_DATE}/boot ${BUILD_DEST}/boot
 	cp -r /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/boot/* ${BUILD_DEST}/boot/

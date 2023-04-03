@@ -1,5 +1,7 @@
 # ignore local directories containing logs, downloaded sources and generated files
 /builds/
 /distfiles/
+/history/
 /logs/
 /packages/
+/work/

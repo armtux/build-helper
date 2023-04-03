@@ -26,7 +26,7 @@ set -x
 # exit on error
 set -e
 
-echo "	Build Helper version 0.1, Copyright (C) 2021 Alexis Boulva
+echo "	Build Helper version 0.1, Copyright (C) 2021-2023 Alexis Boulva
 	Build Helper comes with ABSOLUTELY NO WARRANTY; for details
 	read the included LICENSE file. This is free software, and you are welcome
 	to redistribute it under certain conditions; read the LICENSE file
@@ -59,18 +59,23 @@ export FIRST_BUILD="no"
 #NOTE: If you choose to customize these, be sure to know what you are changing!
 # gentoo mirror to use for fetching initial chroot tarball
 export TARBALL_MIRROR="${TARBALL_MIRROR:-https://gentoo.osuosl.org}"
+# path to this script
+export SCRIPT_PATH="`readlink -f "$0"`"
 # path to build-helper directory structure
-export BUILD_HELPER_TREE="${BUILD_HELPER_TREE:-/build-helper}"
+export BUILD_HELPER_TREE="${BUILD_HELPER_TREE:-$(dirname "${SCRIPT_PATH}")/..}"
 # path to build environment configuration files
 export HOST_CONF="${BUILD_HELPER_TREE}/configs/host"
 # path to build environment binpkg directory
 export HOST_PKGS="${BUILD_HELPER_TREE}/packages/host"
 # paths to build environment ebuild repositories in chroot
 export SYS_REPOS="${SYS_REPOS:-/var/db/repos/gentoo /var/db/repos/musl}"
-# base chroot structure mount type
-export MNT_TYPE="${MNT_TYPE:-tmpfs}"
-# base chroot structure mount options
+# base chroot structure mount type (options: tmpfs or bind)
+export MNT_TYPE="${MNT_TYPE:-bind}"
+#export MNT_TYPE="${MNT_TYPE:-tmpfs}"
+# base chroot structure mount options (for tmpfs)
 export MNT_OPTS="${MNT_OPTS:-size=64G}"
+# chroot /tmp /var/tmp type (options: none or tmpfs)
+export TMP_TYPE="${TMP_TYPE:-none}"
 # chroot /var/tmp/portage tmpfs mount size
 export TMP_SIZE="${TMP_SIZE:-24G}"
 # old: "unreliable" option for mksquashfs
@@ -98,7 +103,7 @@ export BUILD_DEST="${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}.
 # path to finished work's squashfs backup
 export BUILD_HIST="${BUILD_HIST:-`ls -1 ${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}*/dev.sqfs | tail -n 1`}"
 # path to gentoo distfiles
-export DISTFILES="${DISTFILES:-/build-helper/distfiles}"
+export DISTFILES="${DISTFILES:-${BUILD_HELPER_TREE}/distfiles}"
 # path to build environment mount point
 export MNT_PATH="/mnt/${BUILD_NAME}-${BUILD_DATE}"
 
@@ -148,18 +153,23 @@ fi
 build_helper_mounts() {
 
 	# bind mount for accessing distfiles in chroot
+	if [ ! -e "${DISTFILES}" ]
+	then
+		mkdir -p "${DISTFILES}"
+	fi
 	mount -o bind ${DISTFILES} ./var/cache/distfiles
 
 	# clear chroot of previous ebuild repository files for bring-up
-	if [ "${PRIMARY_BUILD}" = "yes" ]
-	then
-		for i in ${SYS_REPOS}
-		do
-			set +e
-			rm -rf .${i}
-			set -e
-		done
-	fi
+	# TODO: find out why (possibly BUILD_HIST related), and avoid if possible
+	#if [ "${PRIMARY_BUILD}" = "yes" ]
+	#then
+	#	for i in ${SYS_REPOS}
+	#	do
+	#		set +e
+	#		rm -rf .${i}
+	#		set -e
+	#	done
+	#fi
 
 	# bind mount for accessing build environment configuration in chroot
 	if [ ! -e .${HOST_CONF} ]
@@ -179,6 +189,10 @@ build_helper_mounts() {
 	done
 
 	# bind mount for completed build destination
+	if [ ! -e ${BUILD_HELPER_TREE}/builds ]
+	then
+		mkdir -p ${BUILD_HELPER_TREE}/builds
+	fi
 	if [ ! -e .${BUILD_HELPER_TREE}/builds ]
 	then
 		mkdir -p .${BUILD_HELPER_TREE}/builds
@@ -193,29 +207,36 @@ build_helper_mounts() {
 	mount -o bind,ro ${BUILD_HELPER_TREE}/scripts .${BUILD_HELPER_TREE}/scripts
 
 	# bind mount for accessing build environment binpkg directory in chroot
+	if [ ! -e "${HOST_PKGS}" ]
+	then
+		mkdir -p "${HOST_PKGS}"
+	fi
 	mount -o bind ${HOST_PKGS} var/cache/binpkgs
 
-	# tmpfs mounts for chroot /tmp and /var/tmp
-	mount -t tmpfs tmpfs \
-		-o rw,nosuid,noatime,nodev,size=4G,mode=1777 \
-		tmp
-
-	mount -t tmpfs tmpfs \
-		-o rw,nosuid,noatime,nodev,size=4G,mode=1777 \
-		var/tmp
-
-	# tmpfs mount for chroot /var/tmp/portage
-	if [ ! -e var/tmp/portage ]
+	# tmpfs mounts for chroot /tmp and /var/tmp if enabled by TMP_TYPE
+	if [ "${TMP_TYPE}" = "tmpfs" ]
 	then
-		mkdir -p var/tmp/portage
-		chown portage:portage var/tmp/portage
-		chmod 775 var/tmp/portage
-	fi
+		mount -t tmpfs tmpfs \
+			-o rw,nosuid,noatime,nodev,size=4G,mode=1777 \
+			tmp
 
-	#	-o rw,nosuid,noatime,nodev,size=${TMP_SIZE},mode=775,uid=portage,gid=portage,x-mount.mkdir=775 \
-	mount -t tmpfs tmpfs \
-		-o rw,nosuid,noatime,nodev,size=${TMP_SIZE},mode=775,uid=250,gid=250 \
-		var/tmp/portage
+		mount -t tmpfs tmpfs \
+			-o rw,nosuid,noatime,nodev,size=4G,mode=1777 \
+			var/tmp
+
+		# tmpfs mount for chroot /var/tmp/portage
+		if [ ! -e var/tmp/portage ]
+		then
+			mkdir -p var/tmp/portage
+			chown portage:portage var/tmp/portage
+			chmod 775 var/tmp/portage
+		fi
+
+		#	-o rw,nosuid,noatime,nodev,size=${TMP_SIZE},mode=775,uid=portage,gid=portage,x-mount.mkdir=775 \
+		mount -t tmpfs tmpfs \
+			-o rw,nosuid,noatime,nodev,size=${TMP_SIZE},mode=775,uid=250,gid=250 \
+			var/tmp/portage
+	fi
 
 	# tmpfs mount for chroot /run
 	mount -t tmpfs tmpfs \
@@ -235,13 +256,24 @@ build_helper_mounts() {
 }
 
 # TODO: allow regular mount/filesystem rather than squashfs/tmpfs/overlayfs
-# mount build-helper directory structure at expected path
+# mount build-helper directory structure at expected path with chosen mount type
 mkdir "${MNT_PATH}"
-mount -t tmpfs ${BUILD_NAME} -o ${MNT_OPTS} "${MNT_PATH}"
+if [ "${MNT_TYPE}" = "bind" ] && [ ! -e "${BUILD_HELPER_TREE}/work/${BUILD_DATE}" ]
+then
+	mkdir -p "${BUILD_HELPER_TREE}/work/${BUILD_DATE}"
+	mount -o bind "${BUILD_HELPER_TREE}/work/${BUILD_DATE}" "${MNT_PATH}"
+elif [ "${MNT_TYPE}" = "tmpfs" ]
+then
+	mount -t tmpfs ${BUILD_NAME} -o ${MNT_OPTS} "${MNT_PATH}"
+fi
 cd "${MNT_PATH}"
 mkdir s w u m
 # fetch and verify initial stage3 tarball if path to prior work to update not defined, otherwise mount prior work
-if [ "${BUILD_HIST}" = "" ]
+if [ "${MNT_TYPE}" = "bind" ] && [ -e "${BUILD_HELPER_TREE}/history" ]
+then
+	mount -o ro,bind "${BUILD_HELPER_TREE}/history/`ls -1 ${BUILD_HELPER_TREE}/history | tail -n 1`" s
+	mount -t overlay overlay -olowerdir=s,workdir=w,upperdir=u m
+elif [ "${BUILD_HIST}" = "" ]
 then
 	export FIRST_BUILD="yes"
 	TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1`"
@@ -290,6 +322,7 @@ do
 	export BUILD_DEST="${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}.${BUILD_DATE}"
 
 	# setup secondary target chroot when first target environment signals crossdev build environment is ready
+	# TODO: use flock instead of cross_ready signal files
 	if [ "${PRIMARY_BUILD}" = "no" ]
 	then
 		until [ -e ${MNT_PATH}/m/tmp/cross_ready.${CROSSDEV_TARGET} ]
@@ -324,24 +357,31 @@ do
 	done
 
 	# bind mount for accessing target binpkg directory in chroot
+	if [ ! -e ${BUILD_PKGS} ]
+	then
+		mkdir -p ${BUILD_PKGS}
+	fi
 	if [ ! -e .${BUILD_PKGS} ]
 	then
 		mkdir -p .${BUILD_PKGS}
 	fi
 	mount -o bind ${BUILD_PKGS} .${BUILD_PKGS}
 
-	# tmpfs mount for /usr/target/tmp/portage
-	if [ ! -e usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage ]
+	# tmpfs mount for /usr/target/tmp/portage if enabled by TMP_TYPE
+	if [ "${TMP_TYPE}" = "tmpfs" ]
 	then
-		mkdir -p usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage
-		chown portage:portage usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage
-		chmod 775 usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage
-	fi
+		if [ ! -e usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage ]
+		then
+			mkdir -p usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage
+			chown portage:portage usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage
+			chmod 775 usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage
+		fi
 
-	#	-o rw,nosuid,nodev,noatime,size=${TMP_SIZE},mode=775,uid=portage,gid=portage,x-mount.mkdir=775 \
-	mount -t tmpfs tmpfs \
-		-o rw,nosuid,nodev,noatime,size=${TMP_SIZE},mode=775,uid=250,gid=250 \
-		usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage
+		#	-o rw,nosuid,nodev,noatime,size=${TMP_SIZE},mode=775,uid=portage,gid=portage,x-mount.mkdir=775 \
+		mount -t tmpfs tmpfs \
+			-o rw,nosuid,nodev,noatime,size=${TMP_SIZE},mode=775,uid=250,gid=250 \
+			usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage
+	fi
 
 	# TODO: add tmux support
 	# enter target chroot and run target build script
@@ -383,20 +423,30 @@ done
 #NOTE: Keep this out of the foreach loops
 cp -a ${MNT_PATH}/m/var/lib/portage/world ${HOST_CONF}/worlds/base
 
+# unify mounted work into build history
 cd "${MNT_PATH}/b"
-if [ -e "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" ]
+if [ "${MNT_TYPE}" = "tmpfs" ]
 then
-	rm "${MNT_PATH}/m/var/tmp/portage/dev.sqfs"
+	if [ -e "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" ]
+	then
+		rm "${MNT_PATH}/m/var/tmp/portage/dev.sqfs"
+	fi
+	#mksquashfs . "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" -comp xz -b 1048576 -Xbcj ${SQUASH_BCJ_HIST} -Xdict-size 1048576
+	#### TODO: change to gensquashfs from sys-fs/squashfs-tools-ng
+	mksquashfs . "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" -comp xz -b 1048576 -Xdict-size 1048576
+	mv "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" "${BUILD_DEST}/dev.sqfs"
+else
+	mkdir -p "${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
+	rsync -HAaX . "${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
 fi
-#mksquashfs . "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" -comp xz -b 1048576 -Xbcj ${SQUASH_BCJ_HIST} -Xdict-size 1048576
-#### TODO: change to gensquashfs from sys-fs/squashfs-tools-ng
-#### TODO: make conditional on whether build environment is in a tmpfs
-####mksquashfs . "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" -comp xz -b 1048576 -Xdict-size 1048576
-####mv "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" "${BUILD_DEST}/dev.sqfs"
 cd
 
 # tear down build environment mounts
-#### TODO: make conditional on whether build environment is in a tmpfs
-####for i in `cat /proc/mounts | grep ${MNT_PATH} | sed -e 's/^.* \//\//' -e 's/ .*$//' | tac`; do umount ${i}; done
+for i in `cat /proc/mounts | grep ${MNT_PATH} | sed -e 's/^.* \//\//' -e 's/ .*$//' | tac`; do umount ${i}; done
 
-echo "Finished... Backup squashfs image located at: ${BUILD_DEST}/dev.sqfs"
+if [ "${MNT_TYPE}" = "tmpfs" ]
+then
+	echo "Finished... Backup squashfs image located at: ${BUILD_DEST}/dev.sqfs"
+else
+	echo "Finished... Backup chroot located at: ${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
+fi
