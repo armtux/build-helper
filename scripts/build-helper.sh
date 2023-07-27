@@ -394,10 +394,10 @@ do
 	# TODO: add tmux support
 	# NOTE: done?
 	# enter target chroot and run target build script
-	$([ "${TMUX_MODE}" = "on" ] && echo -n "tmux new-window -n \"${CROSSDEV_TARGET}.${BUILD_NAME}\" \"")\
+	CHROOT_LOG="${BUILD_HELPER_TREE}/logs/${BUILD_NAME}-${BUILD_DATE}-chroot.log"
+	$([ "${TMUX_MODE}" = "on" ] && echo -n "tmux new-window -n \"${CROSSDEV_TARGET}.${BUILD_NAME}\" \"tmux capture-pane -pS - > ${CHROOT_LOG} && ")\
 		chroot . /bin/bash -x -e ${BUILD_HELPER_TREE}/scripts/build-helper-chroot.sh ${1} 2>&1 \
-		| tee ${BUILD_HELPER_TREE}/logs/${BUILD_NAME}-${BUILD_DATE}-chroot.log\
-		$( ([ "${TMUX_MODE}" = "on" ] && echo -n \") || echo -n " &")
+		$( ([ "${TMUX_MODE}" = "on" ] && echo -n \") || echo -n "| tee ${CHROOT_LOG} &")
 
 	# bind mount for target inclusion for archiving
 	if [ "${PRIMARY_BUILD}" = "no" ]
