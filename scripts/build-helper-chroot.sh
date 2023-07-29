@@ -21,10 +21,85 @@
 # To contact the author, please contact the gentoo community:
 # https://www.gentoo.org/get-involved/
 
+# find out and display $LINENO before running each line, for EXIT trap
+PS4="$((CHROOT_ERROR_LASTNO=$LINENO)): "
+
 # output each running line of code
 set -x
 # exit on error
 set -e
+
+# always set this to $LINENO below when entering main loops
+# also, set it back to '0' below when exiting said loops
+CHROOT_RESUME_LINENO="0"
+
+# increment this below when entering main conditions, recursively
+# also, substract by 1 when exiting each of these condition
+CHROOT_RESUME_DEPTH="0"
+
+# initially set for first resume_mode run
+CHROOT_ERROR="no"
+
+# initially set to empty
+BUILD_HELPER_CHROOT_SOURCE=""
+
+# EXIT trap triggering rescue shell and resume dialog
+resume_mode() {
+	if [ "${TMUX_MODE}" = "on" ]
+	then
+		[ $? -eq 0 ] && [ "${CHROOT_ERROR}" = "no" ] && exit
+		CHROOT_ERROR="yes"
+		echo "chroot script exited due to error. rescue shell launched inside chroot to manually fix error."
+		/bin/bash
+		echo "rescue shell exited. enter a choice of 'resume' (or just press enter/return) to continue the script nearest \
+			possible to the previous error, 'retry' to restart the chroot script from the beginning, \
+			'abort' to exit the chroot scripti, or anything else to re-enter the chroot rescue shell."
+		read resume_choice
+		case "${resume_choice}" in
+			retry)
+				$0 $1
+			;;
+			abort)
+				exit
+			;;
+			resume)
+				if [ "${CHROOT_RESUME_LINENO}" != "0" ]
+				then
+					CHROOT_RESUME_LASTNO="${CHROOT_RESUME_LINENO}"
+				else
+					CHROOT_RESUME_LASTNO="${CHROOT_ERROR_LASTNO}"
+				fi
+
+				if [ "${BUILD_HELPER_CHROOT_SOURCE}" = "" ]
+				then
+					BUILD_HELPER_CHROOT_SOURCE=$(sed -n '2,$' $0)
+				fi
+
+				BUILD_HELPER_CHROOT_TOP=$(echo ${BUILD_HELPER_CHROOT_SOURCE} | \
+								sed -n "1,${CHROOT_RESUME_TOP_END}p")
+				BUILD_HELPER_CHROOT_NEW=$(echo ${BUILD_HELPER_CHROOT_SOURCE} | \
+								sed -n "${CHROOT_RESUME_LASTNO},\$p")
+				BUILD_HELPER_CHROOT_ADD="CHROOT_RESUME_DEPTH=\"${CHROOT_RESUME_DEPTH}\"\n"
+				if [ "${CHROOT_RESUME_DEPTH}" -gt "0" ]
+				then
+					for resume_depth in $(seq $CHROOT_RESUME_DEPTH)
+					do
+						BUILD_HELPER_CHROOT_ADD="${CHROOT_RESUME_ADD}if true; then\n"
+					done
+				fi
+				$(echo ${BUILD_HELPER_CHROOT_TOP}\n${BUILD_HELPER_CHROOT_ADD}\n${BUILD_HELPER_CHROOT_NEW}) $1
+			;;
+			*)
+				resume_mode
+			;;
+		esac
+	fi
+}
+
+trap resume_mode EXIT
+
+# for resume_mode: start cutting at whatever LINENO this is. above also needs to be run upon resuming
+CHROOT_RESUME_TOP_END="$LINENO"
 
 # step out of chroot's / into /root
 cd
@@ -35,9 +110,11 @@ REBUILD_RUST="no"
 # initial chroot steps before cross-compiling, runs/logged with the first crossdev target
 if [ ${PRIMARY_BUILD} = "yes" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	# initial chroot setup if no build history available
 	if [ "${FIRST_BUILD}" = "yes" ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		# create overlay containing only crossdev target toolchain ebuilds
 		mkdir -p /var/db/repos/crossdev/profiles /var/db/repos/crossdev/metadata
 		chown -R portage:portage /var/db/repos/crossdev
@@ -59,6 +136,7 @@ then
 	else
 		emerge --sync || (rm -rf /var/db/repos/gentoo && emerge --sync)
 	fi
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	# make sure portage is up-to-date before continuing
 	# TODO: skip portage update if new python needed?
 	set +e
@@ -67,6 +145,7 @@ then
 	# prepare host environment if no history available
 	if [ "${FIRST_BUILD}" = "yes" ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		# old, libressl unsupported
 		#sed -i -e 's/-libressl/libressl/' /etc/portage/make.conf
 		# make sure we don't have crossdev targets in world before they exist
@@ -97,6 +176,7 @@ then
 		emerge -1kq perl
 		#emerge -1kq perl dev-perl/Locale-gettext dev-perl/Pod-Parser
 		perl-cleaner --all -- -q
+		CHROOT_RESUME_LINENO="$LINENO"
 		# initially point to first listed target for each unique crossdev target toolchain being built
 		for unique_target in `echo ${1} | sed -e 's/:/\n/g' | sort -u`
 		do
@@ -106,14 +186,17 @@ then
 			fi
 			ln -s `ls -1v /usr/${unique_target}.*/usr | grep "/usr/" | grep -v skeleton | sed -e 's/://' -e 's#/usr$##' | tail -n 1` /usr/${unique_target}
 		done
+		CHROOT_RESUME_LINENO="0"
 		# update world, including crossdev toolchains and rust
 		emerge -uDNkq --with-bdeps=y @world
 		# choose latest rust version
 		eselect rust update
 	fi
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	# re-source to apply eselect changes to current shell
 	source /etc/profile
 
+	CHROOT_RESUME_LINENO="$LINENO"
 	# prepare and/or update each unique crossdev target toolchain
 	for unique_target in `echo ${1} | sed -e 's/:/\n/g' | sort -u`
 	do
@@ -164,10 +247,12 @@ then
 			touch /tmp/cross_ready.${unique_target}
 		fi
 	done
+	CHROOT_RESUME_LINENO="0"
 
 	# rebuild rust if needed
 	if [ "${REBUILD_RUST}" = "yes" ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		# re-source to apply eselect changes to current shell
 		source /etc/profile
 		emerge -1q rust
@@ -178,6 +263,7 @@ then
 			touch /tmp/cross_ready.${unique_target}
 		done
 	fi
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 	# re-source to apply eselect changes to current shell
 	source /etc/profile
@@ -195,6 +281,7 @@ else
 	done
 	source /etc/profile
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # remove initial crossdev target symlink
 if [ -h /usr/${CROSSDEV_TARGET} ]
@@ -205,10 +292,12 @@ fi
 # create crossdev target environment for this build from skeleton if missing
 if [ ! -e /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -a /usr/${CROSSDEV_TARGET}.skeleton/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/
 	rm -rf /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage
 	ln -s ${BUILD_CONF}/target-portage /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # symlink crossdev target environment for this build to generic crossdev toolchain location
 ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME} /usr/${CROSSDEV_TARGET}
@@ -255,10 +344,10 @@ then
 fi
 
 # symlink to latest available kernel sources
-# TODO: check for symlink rather than trying to delete missing file
-set +e
-rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
-set -e
+if [ -h /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux ]
+then
+	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
+fi
 ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/`ls -1v /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src | grep linux- | tail -n 1` \
 	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
 
@@ -344,6 +433,7 @@ sed -i -e 's@^#sys-devel/gcc@sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAM
 # create directory to backup files excluded from final build (for embedded gentoo)
 if [ ! -e ../squashfs.exclude ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir -p ../squashfs.exclude
 # if excluded file backup directory already exists, use its /var/db/pkg
 else
@@ -353,16 +443,19 @@ else
 	set -e
 	mv ../squashfs.exclude/pkg.base ../squashfs/var/db/pkg
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # copy locale.gen in final build
 if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`" = "glibc" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	if [ ! -e ../squashfs/etc ]
 	then
 		mkdir -p ../squashfs/etc
 	fi
 	cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/locale.gen ../squashfs/etc/locale.gen
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # install binpkg files in final build directory
 FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs -uDNKq --with-bdeps=y `cat ${BUILD_CONF}/worlds/base`
@@ -483,6 +576,7 @@ mv ../squashfs/var/db/pkg ../squashfs.exclude/pkg.base
 # TODO: refactor for crossdev stage3 build compatibility
 if [ ! -e ../squashfs.extra ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir -p ../squashfs.extra/var/db
 	cp -a ../squashfs.exclude/pkg.base ../squashfs.extra/var/db/pkg
 # prepare final build extra packages directory if present from build history
@@ -509,6 +603,7 @@ else
 	rm -rf pkg.tmp
 	mv pkg.extra "${BUILD_DATE}/pkg.extra.old"
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # install binpkg files in final build extra packages directory
 FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs.extra \
@@ -704,6 +799,7 @@ mkdir -p "../${BUILD_NAME}-${BUILD_DATE}/EFI/boot"
 # copy final build kernel and boot files to output directory (raspberry pi arm / arm64)
 if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	if [ ! -e ../${BUILD_NAME}-${BUILD_DATE}/boot/overlays ]
 	then
 		mkdir -p ../${BUILD_NAME}-${BUILD_DATE}/boot/overlays
@@ -720,10 +816,12 @@ then
 else
 	cp "arch/${BUILD_ARCH}/boot/bzImage" "../${BUILD_NAME}-${BUILD_DATE}/EFI/boot/bootx64.efi"
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # copy userland base packages to output directory if separate from kernel
 if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	# raspberry pi location
 	if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 	then
@@ -733,10 +831,12 @@ then
 		cp ../base-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/base
 	fi
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # copy userland extra packages to output directory if separate from kernel
 if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	# raspberry pi location
 	if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 	then
@@ -746,6 +846,7 @@ then
 		cp ../extra-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/extra
 	fi
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # fully clean kernel source directory (required for some kernel security features)
 # TODO: add option to skip cleanup
@@ -761,6 +862,7 @@ mkdir -p "${BUILD_DEST}"
 # raspberry pi support
 if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -r ../${BUILD_NAME}-${BUILD_DATE}/boot ${BUILD_DEST}/boot
 	cp -r /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/boot/* ${BUILD_DEST}/boot/
 	# workaround for build completion detection in parent (non-chroot) script
@@ -775,3 +877,4 @@ then
 else
 	cp -r "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/${BUILD_NAME}-${BUILD_DATE}/*" "${BUILD_DEST}/"
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
