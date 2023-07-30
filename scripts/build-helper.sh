@@ -108,11 +108,17 @@ export BUILD_DATE="`date -Iseconds`"
 # path to first target final build
 export BUILD_DEST="${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}.${BUILD_DATE}"
 # path to finished work's squashfs backup
-export BUILD_HIST="${BUILD_HIST:-`ls -1 ${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}*/dev.sqfs | tail -n 1`}"
+#export BUILD_HIST="${BUILD_HIST:-`ls -1 ${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}*/dev.sqfs | tail -n 1`}"
+export BUILD_HIST="${BUILD_HIST:-`ls -1 ${BUILD_HELPER_TREE}/history | tail -n 1`}"
+# history archive format
+export HIST_TYPE="${HIST_TYPE:-squashfs}"
+#export HIST_TYPE="${HIST_TYPE:-files}"
 # path to gentoo distfiles
 export DISTFILES="${DISTFILES:-${BUILD_HELPER_TREE}/distfiles}"
 # path to build environment mount point
 export MNT_PATH="/mnt/${BUILD_NAME}-${BUILD_DATE}"
+# whether to ask before unmounting chroot mounts at the end of the script
+export UMOUNT_ASK="${UMOUNT_ASK-yes}"
 
 # minimally sanitize input and display usage if invalid
 DISPLAY_USAGE="no"
@@ -436,7 +442,7 @@ cp -a ${MNT_PATH}/m/var/lib/portage/world ${HOST_CONF}/worlds/base
 
 # unify mounted work into build history
 cd "${MNT_PATH}/b"
-if [ "${MNT_TYPE}" = "tmpfs" ]
+if [ "${HIST_TYPE}" = "squashfs" ]
 then
 	if [ -e "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" ]
 	then
@@ -444,8 +450,13 @@ then
 	fi
 	#mksquashfs . "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" -comp xz -b 1048576 -Xbcj ${SQUASH_BCJ_HIST} -Xdict-size 1048576
 	#### TODO: change to gensquashfs from sys-fs/squashfs-tools-ng
-	mksquashfs . "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" -comp xz -b 1048576 -Xdict-size 1048576
-	mv "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" "${BUILD_DEST}/dev.sqfs"
+	# TODO: make squashfs image compression settings adjustable
+	#mksquashfs . "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" -comp xz -b 1048576 -Xdict-size 1048576
+	#mv "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" "${BUILD_DEST}/dev.sqfs"
+	# NOTE: new way of creating squashfs image due to lack of squashfs-tools in gentoo boot images
+	mount --rbind . "${MNT_PATH}/m/mnt"
+	chroot "${MNT_PATH}/m" /bin/bash -c "cd /mnt && mksquashfs . /var/tmp/portage/dev.sqfs -comp xz -b 1048576 -Xdict-size 1048576"
+	mv "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" "${BUILD_HELPER_TREE}/history/${BUILD_DATE}.sqfs"
 else
 	mkdir -p "${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
 	rsync -HAaX . "${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
@@ -453,12 +464,27 @@ fi
 cd
 
 # tear down build environment mounts
-# TODO: ask user whether or not they want to unmount the work rather than automatically doing so
-for i in `cat /proc/mounts | grep ${MNT_PATH} | sed -e 's/^.* \//\//' -e 's/ .*$//' | tac`; do umount ${i}; done
-
-if [ "${MNT_TYPE}" = "tmpfs" ]
+# TODO: ask user whether or not they want to unmount the work rather than automatically doing so (done?)
+UMOUNT_CHOICE="yes"
+if [ "${UMOUNT_ASK}" = "yes" ]
 then
-	echo "Finished... Backup squashfs image located at: ${BUILD_DEST}/dev.sqfs"
+	echo "Work has been archived. Before finishing: enter 'no' to keep the work mounts for inspection, or press return/enter to unmount."
+	read umount_choice
+	if [ "${umount_choice}" = "no" ]
+	then
+		UMOUNT_CHOICE="no"
+	fi
+fi
+
+if [ "${UMOUNT_CHOICE}" = "yes" ]
+then
+	for i in `cat /proc/mounts | grep ${MNT_PATH} | sed -e 's/^.* \//\//' -e 's/ .*$//' | tac`; do umount ${i}; done
+fi
+
+if [ "${HIST_TYPE}" = "squashfs" ]
+then
+	#echo "Finished... Backup squashfs image located at: ${BUILD_DEST}/dev.sqfs"
+	echo "Finished... Backup squashfs image located at: ${BUILD_HELPER_TREE}/history/${BUILD_DATE}.sqfs"
 else
 	echo "Finished... Backup chroot located at: ${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
 fi

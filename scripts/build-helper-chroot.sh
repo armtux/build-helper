@@ -138,10 +138,15 @@ then
 	fi
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	# make sure portage is up-to-date before continuing
-	# TODO: skip portage update if new python needed?
-	set +e
-	emerge -1kq portage
-	set -e
+	# TODO: skip portage update if new python needed? (done?)
+	#set +e
+	if [ "$(emerge -uDNp --with-bdeps=y @world | grep 'dev-lang/python-' | wc -l)" -lt "1" ]
+	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		emerge -1kq portage
+	fi
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+	#set -e
 	# prepare host environment if no history available
 	if [ "${FIRST_BUILD}" = "yes" ]
 	then
@@ -205,9 +210,10 @@ then
 		then
 			# make sure all packages place their files in same directories
 			# TODO: make compatible with merged-usr
-			mkdir -p /usr/${unique_target}/usr/lib /usr/${unique_target}/lib
-			ln -s lib /usr/${unique_target}/lib64
-			ln -s lib /usr/${unique_target}/usr/lib64
+			# may no longer be needed/appropriate since 17.1 / merged-usr, commenting for now
+			#mkdir -p /usr/${unique_target}/usr/lib /usr/${unique_target}/lib
+			#ln -s lib /usr/${unique_target}/lib64
+			#ln -s lib /usr/${unique_target}/usr/lib64
 			# run crossdev and save result as a skeleton for all targets using the same toolchain
 			crossdev -P -k -t ${unique_target}
 			mv /usr/${unique_target} /usr/${unique_target}.skeleton
@@ -269,9 +275,15 @@ then
 	source /etc/profile
 	# BUG: due to emerge --sync for each target clashing
 	# TODO: replace with proper sync management to avoid delay
-	if [ `echo ${1} | sed -e 's/:/\n/g' | wc -l` -gt 1 ]
+	# note: testing detecting non-primary build sync completion before continuing primary build
+	CROSS_BUILD_COUNT="$(echo ${1} | sed -e 's/:/\n/g' | wc -l)"
+	if [ "${CROSS_BUILD_COUNT}" -gt 1 ]
 	then
-		sleep 300
+		until [ "$(($(ls -1 /tmp | grep cross_sync_ready | wc -l) + 1))" = "${CROSS_BUILD_COUNT}" ]
+		do
+			sleep 5
+		done
+		#sleep 300
 	fi
 # wait until crossdev target ready signal is received for next crossdev targets
 else
@@ -309,12 +321,16 @@ fi
 ln -s ${BUILD_PKGS} /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages
 
 # sync this crossdev target's repositories (may differ from host environment repositories)
-# TODO: make sure parallel sync doesn't clash
+# TODO: make sure parallel sync doesn't clash (done?)
+# note: set auto-sync = no for all repos which are shared with host configuration (like ::gentoo) to avoid excess syncing
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
-	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} --sync || \
-(rm -rf /var/db/repos/gentoo && ${CROSSDEV_TARGET}-emerge \
-	--root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
-	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} --sync)
+	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} --sync
+# note: ::gentoo should have auto-sync = no in crossdev target configurations, so this is no longer needed
+#|| \
+#	(rm -rf /var/db/repos/gentoo && ${CROSSDEV_TARGET}-emerge \
+#		--root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
+#		--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} --sync)
+touch /tmp/cross_sync_ready.${CROSSDEV_TARGET}.${BUILD_NAME}
 
 # set locale before building crossdev target world if crossdev toolchain is glibc
 if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`" = "glibc" ]
@@ -325,8 +341,14 @@ fi
 
 # comment crossdev target INSTALL_MASK (needed for embedded gentoo)
 # TODO: ensure compatibility with full stage3 cross-emerge
-sed -i -e 's/^INSTALL_MASK/#INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
-sed -i -e 's@^sys-devel/gcc@#sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+# note: testing check for @system in crossdev target configuration's base world file
+if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	sed -i -e 's/^INSTALL_MASK/#INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
+	sed -i -e 's@^sys-devel/gcc@#sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # build libc before other packages
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
@@ -338,6 +360,7 @@ ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 
 # ensure presence of /usr/lib64 to avoid potential bugs later
 # TODO: make compatible with merged-usr
+# note: upon further thought, this logic should not affect the musl stage3 seed chroot and may be needed when building glibc targets from it
 if [ ! -e /usr/lib64 ]
 then
 	ln -s lib /usr/lib64
@@ -363,13 +386,18 @@ yes "" | ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make oldconfig
 ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
 
 # copy system busybox configuration to crossdev target
-# TODO: only do this for embedded gentoo
+# TODO: only do this for embedded gentoo (done?)
 # TODO: support toybox in embedded gentoo
-if [ ! -d /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps ]
+if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
 then
-	mkdir -p /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	if [ ! -d /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps ]
+	then
+		mkdir -p /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps
+	fi
+	cp ${BUILD_CONF}/busybox.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
 fi
-cp ${BUILD_CONF}/busybox.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 #sed -i -e 's@^sys-kernel/linux-headers@#sys-kernel/linux-headers@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/profile/package.provided
 #sed -i -e 's@^dev-libs/gmp@#dev-libs/gmp@' -e 's@^dev-libs/mpfr@#dev-libs/mpfr@' -e 's@^dev-libs/mpc@#dev-libs/mpc@' \
@@ -413,77 +441,106 @@ ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -q @module-rebuild
 
 # only patch default configuration files if triggered by no build history being available
-# TODO: check if patch even exists, skip if not
+# TODO: check if patch even exists, skip if not (done?)
 PATCH_SQUASHFS="no"
 # create crossdev target final base build directory
 if [ ! -e ../squashfs ]
 then
-	PATCH_SQUASHFS="yes"
+	if [ -e "${BUILD_CONF}/base.patch" ]
+	then
+		PATCH_SQUASHFS="yes"
+	fi
 	mkdir ../squashfs
 fi
 
 # uncomment crossdev target INSTALL_MASK (needed for embedded gentoo)
-# TODO: ensure compatibility with full stage3 cross-emerge
-sed -i -e 's/^#INSTALL_MASK/INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
-sed -i -e 's@^#sys-devel/gcc@sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+# TODO: ensure compatibility with full stage3 cross-emerge (done?)
+if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	sed -i -e 's/^#INSTALL_MASK/INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
+	sed -i -e 's@^#sys-devel/gcc@sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 #sed -i -e 's@^#sys-kernel/linux-headers@sys-kernel/linux-headers@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/profile/package.provided
 #sed -i -e 's@^#dev-libs/gmp@dev-libs/gmp@' -e 's@^#dev-libs/mpfr@dev-libs/mpfr@' -e 's@^#dev-libs/mpc@dev-libs/mpc@' \
 #	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/profile/package.provided
 
-# create directory to backup files excluded from final build (for embedded gentoo)
+# create directory to backup files excluded from final build (for old modules and embedded gentoo)
 if [ ! -e ../squashfs.exclude ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir -p ../squashfs.exclude
-# if excluded file backup directory already exists, use its /var/db/pkg
-else
-	# TODO: check if directory exists instead of allowing an error
-	set +e
-	rmdir ../squashfs/var/db/pkg
-	set -e
+# if excluded file backup directory already exists, use its /var/db/pkg (for embedded gentoo)
+elif [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
+then
+	# TODO: check if directory exists instead of allowing an error (done? why is rmdir ever needed?)
+	#set +e
+	if [ -d ../squashfs/var/db/pkg ]
+	then
+		rmdir ../squashfs/var/db/pkg
+	fi
+	#set -e
 	mv ../squashfs.exclude/pkg.base ../squashfs/var/db/pkg
+elif [ -e ../squashfs.exclude/pkg.base ]
+then
+	mkdir -p "../squashfs.exclude/${BUILD_DATE}"
+	mv ../squashfs.exclude/pkg.base "../squashfs.exclude/${BUILD_DATE}/pkg.base.old"
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+
+# copy target portage configuration from cross-build environment to final build directory
+if [ ! -e ../squashfs/etc ]
+then
+	mkdir -p ../squashfs/etc
+elif [ -d ../squashfs/etc/portage ]
+then
+	rm -rf ../squashfs/etc/portage
+fi
+mkdir -p ../squashfs/etc/portage
+cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/* ../squashfs/etc/portage
 
 # copy locale.gen in final build
 if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`" = "glibc" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	if [ ! -e ../squashfs/etc ]
-	then
-		mkdir -p ../squashfs/etc
-	fi
 	cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/locale.gen ../squashfs/etc/locale.gen
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # install binpkg files in final build directory
-FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs -uDNKq --with-bdeps=y `cat ${BUILD_CONF}/worlds/base`
+FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs --config-root=../squashfs \
+	-uDNKq --with-bdeps=y `cat ${BUILD_CONF}/worlds/base`
 # final build depclean
-${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs -q --depclean
+${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs --config-root=../squashfs -q --depclean
 
 # create missing system files/directories in final build
 if [ ! -e ../squashfs/root ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir ../squashfs/{dev,home,media,mnt,opt,proc,root,sys}
 	chmod 700 ../squashfs/root
 	cp -a /dev/null /dev/console /dev/tty /dev/loop0 /dev/random /dev/urandom ../squashfs/dev/
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # symlink gcc libaries in /lib and clean up old symlinks first if present
 # TODO: make compatible with merged-usr
 # TODO: instead of this, properly set crossdev target final build ld.so.conf et al
-cd ../squashfs/lib
-set +e
-for i in `ls -1 ../usr/lib/gcc/*/*/*so*`
-do
-	rm `echo ${i} | sed -e 's#\.\./usr/lib/gcc/.*/.*/##'`
-done
-ln -s ../usr/lib/gcc/*/*/*so* ./
-set -e
-cd ..
+# note: testing setting --config-root for ${CROSSDEV_TARGET}-emerge and copying its /etc/portage to final build directory
+cd ../squashfs
+#cd ../squashfs/lib
+#set +e
+#for i in `ls -1 ../usr/lib/gcc/*/*/*so*`
+#do
+#	rm `echo ${i} | sed -e 's#\.\./usr/lib/gcc/.*/.*/##'`
+#done
+#ln -s ../usr/lib/gcc/*/*/*so* ./
+#set -e
+#cd ..
 
 # BUG: some packages install files in wrong location; move them to where they can be found
+# note: is this mkdir required, considering the code below?
 if [ ! -e lib/udev/hwdb.d ]
 then
 	mkdir -p lib/udev/hwdb.d
@@ -498,6 +555,7 @@ fi
 #set -e
 if [ -e usr/${CROSSDEV_TARGET}.${BUILD_NAME} ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cd usr/${CROSSDEV_TARGET}.${BUILD_NAME}
 	for i in `find . -type f,l`
 	do
@@ -509,78 +567,99 @@ then
 	done
 	cd ../..
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # make sure all packages place their files in same directories
 # TODO: make compatible with merged-usr
-if [ -h lib ]
-then
-	rm lib
-fi
-if [ -d lib64 ]
-then
-	cd lib64
-	for i in `find . -type f,l`
-	do
-		if [ ! -d ../lib/`dirname ${i}` ]
-		then
-			mkdir -p ../lib/`dirname ${i}`
-		fi
-		mv ${i} ../lib/${i}
-	done
-	cd ..
-	rm -rf lib64
-	#ln -s lib64 lib
-fi
+# note: testing this no longer being needed
+#if [ -h lib ]
+#then
+#	rm lib
+#fi
+#if [ -d lib64 ]
+#then
+#	cd lib64
+#	for i in `find . -type f,l`
+#	do
+#		if [ ! -d ../lib/`dirname ${i}` ]
+#		then
+#			mkdir -p ../lib/`dirname ${i}`
+#		fi
+#		mv ${i} ../lib/${i}
+#	done
+#	cd ..
+#	rm -rf lib64
+#	#ln -s lib64 lib
+#fi
 
-if [ -h usr/lib ]
-then
-	rm usr/lib
-fi
-if [ -d usr/lib64 ]
-then
-	cd usr/lib64
-	for i in `find . -type f,l`
-	do
-		if [ ! -d ../lib/`dirname ${i}` ]
-		then
-			mkdir -p ../lib/`dirname ${i}`
-		fi
-		mv ${i} ../lib/${i}
-	done
-	cd ../..
-	rm -rf usr/lib64
-	#ln -s lib64 usr/lib
-fi
+#if [ -h usr/lib ]
+#then
+#	rm usr/lib
+#fi
+#if [ -d usr/lib64 ]
+#then
+#	cd usr/lib64
+#	for i in `find . -type f,l`
+#	do
+#		if [ ! -d ../lib/`dirname ${i}` ]
+#		then
+#			mkdir -p ../lib/`dirname ${i}`
+#		fi
+#		mv ${i} ../lib/${i}
+#	done
+#	cd ../..
+#	rm -rf usr/lib64
+#	#ln -s lib64 usr/lib
+#fi
 
 # back up old kernel modules outside of final build
-# TODO: check if needed before doing, avoid letting errors pass
+# TODO: check if needed before doing, avoid letting errors pass (done?)
 mkdir -p "../squashfs.exclude/${BUILD_DATE}/modules"
-set +e
-mv ../squashfs/usr/include "../squashfs.exclude/${BUILD_DATE}/include.base"
-for kmodules in `ls -1v ../squashfs/lib/modules`
-do
-	if [ "${kmodules}" != "`ls -1v ../squashfs/lib/modules | tail -n1`" ]
-	then
-		mv ../squashfs/lib/modules/${kmodules} "../squashfs.exclude/${BUILD_DATE}/modules"
-	fi
-done
-set -e
+#set +e
+# also back up embedded target headers outside of final build to save space
+# note: commenting, use INSTALL_MASK trick instead
+#if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ] && [ -e ../squashfs/usr/include ]
+#then
+#	mv ../squashfs/usr/include "../squashfs.exclude/${BUILD_DATE}/include.base"
+#fi
+if [ -e ../squashfs/lib/modules ] && [ "$(ls -1 ../squashfs/lib/modules | wc -l)" -gt "0" ]
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	CHROOT_RESUME_LINENO="$LINENO"
+	for kmodules in `ls -1v ../squashfs/lib/modules`
+	do
+		if [ "${kmodules}" != "`ls -1v ../squashfs/lib/modules | tail -n1`" ]
+		then
+			mv ../squashfs/lib/modules/${kmodules} "../squashfs.exclude/${BUILD_DATE}/modules"
+		fi
+	done
+	CHROOT_RESUME_LINENO="0"
+fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+#set -e
 
 #${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs -Kq @module-rebuild
 
 # backup final build /var/db/pkg
-# TODO: only do this for embedded gentoo
-mv ../squashfs/var/db/pkg ../squashfs.exclude/pkg.base
+# TODO: only do this for embedded gentoo (done?)
+if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	mv ../squashfs/var/db/pkg ../squashfs.exclude/pkg.base
+else
+	cp -a ../squashfs/var/db/pkg ../squashfs.exclude/pkg.base
+fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # create final build extra packages directory if missing, reuse base /var/db/pkg
-# TODO: refactor for crossdev stage3 build compatibility
+# TODO: refactor for crossdev stage3 build compatibility (done?)
 if [ ! -e ../squashfs.extra ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir -p ../squashfs.extra/var/db
 	cp -a ../squashfs.exclude/pkg.base ../squashfs.extra/var/db/pkg
 # prepare final build extra packages directory if present from build history
-# TODO: avoid letting errors pass
+# TODO: avoid letting errors pass (done?)
 else
 	mkdir ../squashfs.exclude/pkg.tmp
 	mount -t tmpfs tmpfs ../squashfs.exclude/pkg.tmp
@@ -589,13 +668,19 @@ else
 	#mount -o bind ../pkg.base b
 	#mount -o bind ../pkg.extra e
 	cp -a ../pkg.base/* b/
-	set +e
-	cp -a ../pkg.extra/* e/
-	set -e
+	#set +e
+	if [ -e ../pkg.extra ] && [ "$(ls -1 ../pkg.extra | wc -l)" -gt "0" ]
+	then
+		cp -a ../pkg.extra/* e/
+	fi
+	#set -e
 	mount -t overlay overlay -olowerdir=b:e,workdir=w,upperdir=u m
-	set +e
-	rmdir ../squashfs.extra/var/db/pkg
-	set -e
+	#set +e
+	if [ -e ../squashfs.extra/var/db/pkg ]
+	then
+		rm -rf ../squashfs.extra/var/db/pkg
+	fi
+	#set -e
 	cp -r m ../../squashfs.extra/var/db/pkg
 	cd ..
 	#umount pkg.tmp/m pkg.tmp/e pkg.tmp/b pkg.tmp
@@ -605,14 +690,26 @@ else
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
+# copy target portage configuration from cross-build environment to final build extra packages directory
+if [ ! -e ../squashfs.extra/etc ]
+then
+	mkdir -p ../squashfs.extra/etc
+elif [ -d ../squashfs.extra/etc/portage ]
+then
+	rm -rf ../squashfs.extra/etc/portage
+fi
+mkdir -p ../squashfs.extra/etc/portage
+cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/* ../squashfs.extra/etc/portage
+
 # install binpkg files in final build extra packages directory
-FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs.extra \
---sysroot=../squashfs.extra -uDNKq --with-bdeps=y `cat ${BUILD_CONF}/worlds/extra`
+FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs.extra --config-root=../squashfs.extra \
+	--sysroot=../squashfs.extra -uDNKq --with-bdeps=y `cat ${BUILD_CONF}/worlds/extra`
 
 # final build extra packages depclean
-${CROSSDEV_TARGET}-emerge --root=../squashfs.extra --sysroot=../squashfs.extra -q --depclean
+${CROSSDEV_TARGET}-emerge --root=../squashfs.extra --sysroot=../squashfs.extra --config-root=../squashfs.extra -q --depclean
 
 # BUG: some packages install files in wrong location; move them to where they can be found
+# note: is this mkdir required, considering the code below?
 cd ../squashfs.extra
 if [ ! -e lib/udev/rules.d ]
 then
@@ -620,7 +717,7 @@ then
 fi
 
 # make sure all packages place their files in same directories
-# TODO: make compatible with merged-usr
+# TODO: make compatible with merged-usr (done?)
 if [ -e usr/${CROSSDEV_TARGET}.${BUILD_NAME} ]
 then
 	cd usr/${CROSSDEV_TARGET}.${BUILD_NAME}
@@ -635,68 +732,74 @@ then
 	cd ../..
 fi
 
-if [ -h lib ]
-then
-	rm lib
-fi
-if [ -d lib64 ]
-then
-	cd lib64
-	for i in `find . -type f,l`
-	do
-		if [ ! -d ../lib/`dirname ${i}` ]
-		then
-			mkdir -p ../lib/`dirname ${i}`
-		fi
-		mv ${i} ../lib/${i}
-	done
-	cd ..
-	rm -rf lib64
-	#ln -s lib64 lib
-fi
+# note: testing this no longer being needed
+#if [ -h lib ]
+#then
+#	rm lib
+#fi
+#if [ -d lib64 ]
+#then
+#	cd lib64
+#	for i in `find . -type f,l`
+#	do
+#		if [ ! -d ../lib/`dirname ${i}` ]
+#		then
+#			mkdir -p ../lib/`dirname ${i}`
+#		fi
+#		mv ${i} ../lib/${i}
+#	done
+#	cd ..
+#	rm -rf lib64
+#	#ln -s lib64 lib
+#fi
 
-if [ -h usr/lib ]
-then
-	rm usr/lib
-fi
-if [ -d usr/lib64 ]
-then
-	cd usr/lib64
-	for i in `find . -type f,l`
-	do
-		if [ ! -d ../lib/`dirname ${i}` ]
-		then
-			mkdir -p ../lib/`dirname ${i}`
-		fi
-		mv ${i} ../lib/${i}
-	done
-	cd ../..
-	rm -rf usr/lib64
-	#ln -s lib64 usr/lib
-fi
+#if [ -h usr/lib ]
+#then
+#	rm usr/lib
+#fi
+#if [ -d usr/lib64 ]
+#then
+#	cd usr/lib64
+#	for i in `find . -type f,l`
+#	do
+#		if [ ! -d ../lib/`dirname ${i}` ]
+#		then
+#			mkdir -p ../lib/`dirname ${i}`
+#		fi
+#		mv ${i} ../lib/${i}
+#	done
+#	cd ../..
+#	rm -rf usr/lib64
+#	#ln -s lib64 usr/lib
+#fi
 
 # symlink libOpenGL,so to libGL.so.1 if missing
-if [ ! -e usr/lib/libGL.so.1 && ! -h usr/lib/libGL.so.1 ]
-then
-	ln -s libOpenGL.so usr/lib/libGL.so.1
-fi
+# TODO: uncomment or remove depending on purpose
+#if [ ! -e usr/lib/libGL.so.1 && ! -h usr/lib/libGL.so.1 ]
+#then
+#	ln -s libOpenGL.so usr/lib/libGL.so.1
+#fi
 
 # exclude files from final build extra packages directory
 # TODO: remove this, replace with longer INSTALL_MASK in target configuration
-set +e
-#mv usr/${CROSSDEV_TARGET}/lib/udev/rules.d/* lib/udev/rules.d/
-#mv usr/${CROSSDEV_TARGET}.${BUILD_NAME}/lib/udev/rules.d/* lib/udev/rules.d/
-#mv usr/${CROSSDEV_TARGET}/lib/udev/net.sh lib/udev/rules.d/
-#mv usr/${CROSSDEV_TARGET}.${BUILD_NAME}/lib/udev/net.sh lib/udev/rules.d/
+#set +e
+##mv usr/${CROSSDEV_TARGET}/lib/udev/rules.d/* lib/udev/rules.d/
+##mv usr/${CROSSDEV_TARGET}.${BUILD_NAME}/lib/udev/rules.d/* lib/udev/rules.d/
+##mv usr/${CROSSDEV_TARGET}/lib/udev/net.sh lib/udev/rules.d/
+##mv usr/${CROSSDEV_TARGET}.${BUILD_NAME}/lib/udev/net.sh lib/udev/rules.d/
 
-mv ../squashfs.extra/usr/include  "../squashfs.exclude/${BUILD_DATE}/include.extra"
-mv ../squashfs.extra/var/db/pkg ../squashfs.exclude/pkg.extra
-mv ../squashfs.extra/usr/share/gtk-doc ../squashfs.exclude/gtk-doc
-mv ../squashfs.extra/usr/share/qemu/edk2-a* ../squashfs.exclude/
-set -e
+#mv ../squashfs.extra/usr/include  "../squashfs.exclude/${BUILD_DATE}/include.extra"
+if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
+	mv ../squashfs.extra/var/db/pkg ../squashfs.exclude/pkg.extra
+else
+	cp -a ../squashfs.extra/var/db/pkg ../squashfs.exclude/pkg.extra
+fi
+#mv ../squashfs.extra/usr/share/gtk-doc ../squashfs.exclude/gtk-doc
+#mv ../squashfs.extra/usr/share/qemu/edk2-a* ../squashfs.exclude/
+#set -e
 
 # replace old initramfs files with configuration contents if present
-# TODO: replace device nodes in configuration initramfs files with a mknod script for git compatibility
+# TODO: replace device nodes in configuration initramfs files with mounting a devtmpfs in the initramfs init script
 if [ -e ../initramfs ]
 then
 	rm -rf ../initramfs
@@ -705,11 +808,17 @@ cp -a ${BUILD_CONF}/initramfs ../initramfs
 
 # backup system busybox binpkg to build minimal initramfs busybox
 mkdir /tmp/busybox /tmp/busybox-mini
-# TODO: avoid letting errors pass
-set +e
-mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 /tmp/busybox/
-rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox-*
-set -e
+# TODO: avoid letting errors pass (done?)
+#set +e
+if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 | wc -l)" -gt "0" ]
+then
+	mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 /tmp/busybox/
+fi
+if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep busybox | wc -l)" -gt "0"]
+then
+	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox-*
+fi
+#set -e
 # use minimal busybox configuration to build initramfs busybox
 cp ${BUILD_CONF}/busybox-mini.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
 USE="-make-symlinks -syslog" ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
@@ -717,11 +826,17 @@ USE="-make-symlinks -syslog" ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TA
 # move minimal busybox binpkg to temporary work directory
 mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 /tmp/busybox-mini/
 # restore system busybox binpkg
-# TODO: avoid letting errors pass
-set +e
-mv /tmp/busybox/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/
-rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox-*
-set -e
+# TODO: avoid letting errors pass (done?)
+#set +e
+if [ "$(ls -1 /tmp/busybox | wc -l)" -gt "0" ]
+then
+	mv /tmp/busybox/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/
+fi
+if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep busybox | wc -l)" -gt "0" ]
+then
+	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox-*
+fi
+#set -e
 # extract minimal busybox binpkg and place static binary in initramfs
 cd /tmp/busybox-mini
 tar xjpf busybox*.tbz2
@@ -738,26 +853,29 @@ ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- INSTALL_MOD_PATH=../squashf
 cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/squashfs
 
 # patch final build directory if triggered on target's first build
-# TODO: check if patch even exists, skip if not
+# TODO: check if patch even exists, skip if not (done?)
 if [ "${PATCH_SQUASHFS}" = "yes" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	patch -p0 < "${BUILD_CONF}/base.patch"
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # edit embedded gentoo init script runlevels
 # TODO: remove this, should be done by users after build
-cd etc/runlevels/boot
-set +e
-rm fsck keymaps localmount root save-keymaps save-termencoding swap
-ln -s /etc/init.d/busybox-klogd ./
-ln -s /etc/init.d/busybox-syslogd ./
-ln -s /etc/init.d/iptables ./
-ln -s /etc/init.d/ip6tables ./
-ln -s /etc/init.d/pwgen ./
-cd ../default
-rm netmount
-ln -s /etc/init.d/chronyd ./
-set -e
+# note: commenting to test if ever needed
+#cd etc/runlevels/boot
+#set +e
+#rm fsck keymaps localmount root save-keymaps save-termencoding swap
+#ln -s /etc/init.d/busybox-klogd ./
+#ln -s /etc/init.d/busybox-syslogd ./
+#ln -s /etc/init.d/iptables ./
+#ln -s /etc/init.d/ip6tables ./
+#ln -s /etc/init.d/pwgen ./
+#cd ../default
+#rm netmount
+#ln -s /etc/init.d/chronyd ./
+#set -e
 
 # return to final build directory and compress it
 # TODO: use sys-fs/squashfs-tools-ng instead
@@ -789,9 +907,11 @@ fi
 cd ../linux
 if [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ] && [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm usr/initramfs_data.cpio
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
 fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 #TODO: Implement for non-uefi and other architectures
 mkdir -p "../${BUILD_NAME}-${BUILD_DATE}/EFI/boot"
@@ -854,10 +974,10 @@ cp .config ../config
 ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make mrproper
 mv ../config .config
 
-#TODO: Implement config squashfs
+# TODO: Implement config squashfs
 
 # final build output to build-helper defined location
-#TODO: Implement for non-uefi and other architectures
+# TODO: Implement for non-uefi and other architectures
 mkdir -p "${BUILD_DEST}"
 # raspberry pi support
 if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
