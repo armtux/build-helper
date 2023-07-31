@@ -821,8 +821,8 @@ fi
 #set -e
 # use minimal busybox configuration to build initramfs busybox
 cp ${BUILD_CONF}/busybox-mini.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
-USE="-make-symlinks -syslog" ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
-	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1Bq busybox
+BINPKG_COMPRESS="bzip2" USE="-make-symlinks -syslog" ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
+	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} --config-root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1Bq busybox
 # move minimal busybox binpkg to temporary work directory
 mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 /tmp/busybox-mini/
 # restore system busybox binpkg
