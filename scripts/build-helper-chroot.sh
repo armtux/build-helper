@@ -87,7 +87,7 @@ resume_mode() {
 						BUILD_HELPER_CHROOT_ADD="${CHROOT_RESUME_ADD}if true; then\n"
 					done
 				fi
-				$(echo ${BUILD_HELPER_CHROOT_TOP}\n${BUILD_HELPER_CHROOT_ADD}\n${BUILD_HELPER_CHROOT_NEW}) $1
+				$(echo "${BUILD_HELPER_CHROOT_TOP}\n${BUILD_HELPER_CHROOT_ADD}\n${BUILD_HELPER_CHROOT_NEW}") $1
 			;;
 			*)
 				resume_mode
@@ -625,15 +625,18 @@ mkdir -p "../squashfs.exclude/${BUILD_DATE}/modules"
 if [ -e ../squashfs/lib/modules ] && [ "$(ls -1 ../squashfs/lib/modules | wc -l)" -gt "0" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	CHROOT_RESUME_LINENO="$LINENO"
-	for kmodules in `ls -1v ../squashfs/lib/modules`
-	do
-		if [ "${kmodules}" != "`ls -1v ../squashfs/lib/modules | tail -n1`" ]
-		then
-			mv ../squashfs/lib/modules/${kmodules} "../squashfs.exclude/${BUILD_DATE}/modules"
-		fi
-	done
-	CHROOT_RESUME_LINENO="0"
+	# note: will be rebuilding the kernel and out-of-tree modules later, therefore moving all old modules to avoid orphaned files from .config changes
+	# keeping old code in case needed later.
+	#CHROOT_RESUME_LINENO="$LINENO"
+	#for kmodules in `ls -1v ../squashfs/lib/modules`
+	#do
+		#if [ "${kmodules}" != "`ls -1v ../squashfs/lib/modules | tail -n1`" ]
+		#then
+			#mv ../squashfs/lib/modules/${kmodules} "../squashfs.exclude/${BUILD_DATE}/modules"
+		#fi
+	#done
+	#CHROOT_RESUME_LINENO="0"
+	mv ../squashfs/lib/modules/* ../squashfs.exclude/${BUILD_DATE}/modules
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 #set -e
@@ -790,6 +793,7 @@ fi
 
 #mv ../squashfs.extra/usr/include  "../squashfs.exclude/${BUILD_DATE}/include.extra"
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
+then
 	mv ../squashfs.extra/var/db/pkg ../squashfs.exclude/pkg.extra
 else
 	cp -a ../squashfs.extra/var/db/pkg ../squashfs.exclude/pkg.extra
@@ -814,7 +818,7 @@ if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.t
 then
 	mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 /tmp/busybox/
 fi
-if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep busybox | wc -l)" -gt "0"]
+if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep busybox | wc -l)" -gt "0" ]
 then
 	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox-*
 fi
@@ -822,7 +826,7 @@ fi
 # use minimal busybox configuration to build initramfs busybox
 cp ${BUILD_CONF}/busybox-mini.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
 BINPKG_COMPRESS="bzip2" USE="-make-symlinks -syslog" ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
-	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} --config-root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1Bq busybox
+	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1Bq busybox
 # move minimal busybox binpkg to temporary work directory
 mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 /tmp/busybox-mini/
 # restore system busybox binpkg
