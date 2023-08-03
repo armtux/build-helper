@@ -75,12 +75,12 @@ export HOST_CONF="${BUILD_HELPER_TREE}/configs/host"
 # path to build environment binpkg directory
 export HOST_PKGS="${BUILD_HELPER_TREE}/packages/host"
 # paths to build environment ebuild repositories in chroot
-export SYS_REPOS="${SYS_REPOS:-/var/db/repos/gentoo /var/db/repos/musl}"
+export SYS_REPOS="${SYS_REPOS:-/var/db/repos/gentoo}"
 # base chroot structure mount type (options: tmpfs or bind)
 export MNT_TYPE="${MNT_TYPE:-bind}"
 #export MNT_TYPE="${MNT_TYPE:-tmpfs}"
 # base chroot structure mount options (for tmpfs)
-export MNT_OPTS="${MNT_OPTS:-size=64G}"
+export MNT_OPTS="${MNT_OPTS:-size=30G}"
 # chroot /tmp /var/tmp type (options: none or tmpfs)
 export TMP_TYPE="${TMP_TYPE:-none}"
 # chroot /var/tmp/portage tmpfs mount size
@@ -109,7 +109,7 @@ export BUILD_DATE="`date -Iseconds`"
 export BUILD_DEST="${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}.${BUILD_DATE}"
 # path to finished work's squashfs backup
 #export BUILD_HIST="${BUILD_HIST:-`ls -1 ${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}*/dev.sqfs | tail -n 1`}"
-export BUILD_HIST="${BUILD_HIST:-`ls -1 ${BUILD_HELPER_TREE}/history | tail -n 1`}"
+export BUILD_HIST="${BUILD_HIST:-`[ -d ${BUILD_HELPER_TREE}/history ] && ls -1 ${BUILD_HELPER_TREE}/history | tail -n 1`}"
 # history archive format
 export HIST_TYPE="${HIST_TYPE:-squashfs}"
 #export HIST_TYPE="${HIST_TYPE:-files}"
@@ -283,9 +283,11 @@ fi
 cd "${MNT_PATH}"
 mkdir s w u m
 # fetch and verify initial stage3 tarball if path to prior work to update not defined, otherwise mount prior work
-if [ "${MNT_TYPE}" = "bind" ] && [ -e "${BUILD_HELPER_TREE}/history" ]
+#if [ "${HIST_TYPE}" = "files" ] && [ -e "${BUILD_HELPER_TREE}/history" ]
+if [ "${HIST_TYPE}" = "files" ] && [ "${BUILD_HIST}" != "" ] && [ -d "${BUILD_HIST}" ]
 then
-	mount -o ro,bind "${BUILD_HELPER_TREE}/history/`ls -1 ${BUILD_HELPER_TREE}/history | tail -n 1`" s
+	#mount -o ro,bind "${BUILD_HELPER_TREE}/history/`ls -1 ${BUILD_HELPER_TREE}/history | tail -n 1`" s
+	mount -o ro,bind "${BUILD_HIST}" s
 	mount -t overlay overlay -olowerdir=s,workdir=w,upperdir=u m
 elif [ "${BUILD_HIST}" = "" ]
 then
@@ -293,7 +295,12 @@ then
 	TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1`"
 	curl -O ${TARBALL_LINK}.asc -O ${TARBALL_LINK}.DIGESTS -O ${TARBALL_LINK}
 	#curl -O ${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1` -O ${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1`.DIGESTS.asc
-	gpg --keyserver hkps://keys.gentoo.org --recv-keys 13EBBDBEDE7A12775DFDB1BABB572E0E2D182910
+	if [ -e /usr/share/openpgp-keys/gentoo-release.asc ]
+	then
+		gpg --import /usr/share/openpgp-keys/gentoo-release.asc
+	else
+		gpg --keyserver hkps://keys.gentoo.org --recv-keys 13EBBDBEDE7A12775DFDB1BABB572E0E2D182910
+	fi
 	gpg --verify stage3*.asc && gpg --verify stage3*.DIGESTS && grep -A 1 SHA512 stage3*.DIGESTS | grep -e 'xz$' | sha512sum -c || (echo "stage3 integrity check failed." && exit)
 	#gpg --verify stage3*.asc && grep -A 1 SHA512 stage3*.asc | grep -e 'bz2$' | sha512sum -c || (echo "stage3 integrity check failed." && exit)
 else
@@ -441,6 +448,7 @@ done
 cp -a ${MNT_PATH}/m/var/lib/portage/world ${HOST_CONF}/worlds/base
 
 # unify mounted work into build history
+[ ! -e "${BUILD_HELPER_TREE}/history" ] && mkdir -p "${BUILD_HELPER_TREE}/history"
 cd "${MNT_PATH}/b"
 if [ "${HIST_TYPE}" = "squashfs" ]
 then
