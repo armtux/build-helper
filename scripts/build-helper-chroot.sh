@@ -323,8 +323,10 @@ ln -s ${BUILD_PKGS} /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages
 # sync this crossdev target's repositories (may differ from host environment repositories)
 # TODO: make sure parallel sync doesn't clash (done?)
 # note: set auto-sync = no for all repos which are shared with host configuration (like ::gentoo) to avoid excess syncing
+CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} --sync
+CHROOT_RESUME_LINENO="0"
 # note: ::gentoo should have auto-sync = no in crossdev target configurations, so this is no longer needed
 #|| \
 #	(rm -rf /var/db/repos/gentoo && ${CROSSDEV_TARGET}-emerge \
@@ -351,12 +353,16 @@ fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # build libc before other packages
+CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -uDNkq \
 	sys-libs/`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`
+CHROOT_RESUME_LINENO="0"
 # build kernel and dependencies before other packages
+CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -kq --with-bdeps=y `cat ${BUILD_CONF}/worlds/kernel`
+CHROOT_RESUME_LINENO="0"
 
 # ensure presence of /usr/lib64 to avoid potential bugs later
 # TODO: make compatible with merged-usr
@@ -371,13 +377,17 @@ if [ -h /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux ]
 then
 	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
 fi
+CHROOT_RESUME_LINENO="$LINENO"
 ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/`ls -1v /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src | grep linux- | tail -n 1` \
 	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
+CHROOT_RESUME_LINENO="0"
 
 # use target kernel .config
 cp ${BUILD_CONF}/linux.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux/.config
+CHROOT_RESUME_LINENO="$LINENO"
 sed -i -e "s#CONFIG_INITRAMFS_SOURCE=\"\"#CONFIG_INITRAMFS_SOURCE=\"/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs\"#" \
 	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux/.config
+CHROOT_RESUME_LINENO="0"
 
 # update target kernel .config for current kernel version and prepare sources for emerge checks
 # TODO: support sys-kernel/gentoo-kernel[-bin] and dracut
@@ -412,33 +422,45 @@ CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 # build pam with different USE flags to avoid circular dependency
 sed -i -e 's@^#sys-libs/pam@sys-libs/pam@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.use/pam
 
+CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1kq pam
+CHROOT_RESUME_LINENO="0"
 
 sed -i -e 's@^sys-libs/pam@#sys-libs/pam@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.use/pam
 
 # build / update crossdev target world
+CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -uDNkq --with-bdeps=y `cat ${BUILD_CONF}/worlds/{base,extra}`
+CHROOT_RESUME_LINENO="0"
 
 # build crossdev target live ebuilds with updates
+CHROOT_RESUME_LINENO="$LINENO"
 CHOST=${CROSSDEV_TARGET} PORTAGE_CONFIGROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 ROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} SYSROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} smart-live-rebuild
+CHROOT_RESUME_LINENO="0"
 
 # prepare sources for emerge checks (again?)
 ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
 
 # crossdev target depclean
+CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -q --depclean
+CHROOT_RESUME_LINENO="0"
 
 # crossdev target preserved-rebuild
+CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -q @preserved-rebuild
+CHROOT_RESUME_LINENO="0"
 
 # crossdev target out-of-tree kernel module rebuild
+CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -q @module-rebuild
+CHROOT_RESUME_LINENO="0"
 
 # only patch default configuration files if triggered by no build history being available
 # TODO: check if patch even exists, skip if not (done?)
@@ -705,8 +727,10 @@ mkdir -p ../squashfs.extra/etc/portage
 cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/* ../squashfs.extra/etc/portage
 
 # install binpkg files in final build extra packages directory
+CHROOT_RESUME_LINENO="$LINENO"
 FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs.extra --config-root=../squashfs.extra \
 	--sysroot=../squashfs.extra -uDNKq --with-bdeps=y `cat ${BUILD_CONF}/worlds/extra`
+CHROOT_RESUME_LINENO="0"
 
 # final build extra packages depclean
 ${CROSSDEV_TARGET}-emerge --root=../squashfs.extra --sysroot=../squashfs.extra --config-root=../squashfs.extra -q --depclean
@@ -825,8 +849,10 @@ fi
 #set -e
 # use minimal busybox configuration to build initramfs busybox
 cp ${BUILD_CONF}/busybox-mini.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
+CHROOT_RESUME_LINENO="$LINENO"
 BINPKG_COMPRESS="bzip2" USE="-make-symlinks -syslog" ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1Bq busybox
+CHROOT_RESUME_LINENO="0"
 # move minimal busybox binpkg to temporary work directory
 mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 /tmp/busybox-mini/
 # restore system busybox binpkg
