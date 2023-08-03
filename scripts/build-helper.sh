@@ -320,7 +320,7 @@ if [ "${FIRST_BUILD}" = "yes" ]
 then
 	#tar xjpf ../stage3*.bz2 --xattrs-include='*.*' --numeric-owner
 	#tar xjpf ../stage3*.bz2
-	tar xjpf ../stage3*.xz --xattrs-include='*.*' --numeric-owner
+	tar xJpf ../stage3*.xz --xattrs-include='*.*' --numeric-owner
 fi
 
 # setup chroot directory/mount structure
