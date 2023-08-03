@@ -165,6 +165,12 @@ fi
 # setup chroot directory/mount structure
 build_helper_mounts() {
 
+	# check if logs directory exists, otherwise create it
+	if [ ! -e "${BUILD_HELPER_TREE}/logs"]
+	then
+		mkdir -p "${BUILD_HELPER_TREE}/logs"
+	fi
+
 	# bind mount for accessing distfiles in chroot
 	if [ ! -e "${DISTFILES}" ]
 	then
