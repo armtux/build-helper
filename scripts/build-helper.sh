@@ -67,7 +67,7 @@ fi
 # gentoo mirror to use for fetching initial chroot tarball
 export TARBALL_MIRROR="${TARBALL_MIRROR:-https://gentoo.osuosl.org}"
 # path to this script
-export SCRIPT_PATH="`readlink -f "$0"`"
+export SCRIPT_PATH="`readlink -f \"$0\"`"
 # path to build-helper directory structure
 export BUILD_HELPER_TREE="${BUILD_HELPER_TREE:-$(dirname "${SCRIPT_PATH}")/..}"
 # path to build environment configuration files
