@@ -1,0 +1,4 @@
+dev-libs/libbsd
+sys-boot/raspberrypi-firmware
+sys-libs/zlib
+sys-kernel/raspberrypi-sources

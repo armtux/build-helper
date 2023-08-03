@@ -1,0 +1,38 @@
+#!/bin/busybox sh
+
+mount -t devtmpfs none /dev
+while [ ! -e "/dev/mmcblk0p1" ]
+do
+	umount /dev
+	sleep 2
+	mount -t devtmpfs none /dev
+done
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+mount -t tmpfs tmpfs /mnt
+mkdir /mnt/b /mnt/e /mnt/u /mnt/w /mnt/m /mnt/c /mnt/sd
+
+while [ ! -f "/mnt/sd/kernel8.img" ]
+do
+	mount -o ro -t vfat /dev/mmcblk0p1 /mnt/sd || sleep 1
+done
+
+if [ -f "/mnt/sd/config" ]
+then
+	cp /mnt/sd/config /mnt/config
+	mount -t squashfs /mnt/sd/config /mnt/c
+fi
+
+mount -t squashfs /base /mnt/b
+mount -t squashfs /extra /mnt/e
+
+umount /mnt/sd
+
+mount -t overlay overlay -olowerdir=/mnt/c:/mnt/e:/mnt/b,upperdir=/mnt/u,workdir=/mnt/w /mnt/m
+
+umount /proc
+umount /sys
+umount /dev
+
+exec switch_root /mnt/m /sbin/init || exec sh

@@ -1,0 +1,10 @@
+app-admin/pwgen
+app-editors/vim
+app-misc/tmux
+dev-vcs/git
+net-firewall/iptables
+net-misc/chrony
+net-wireless/bluez
+net-wireless/iw
+net-wireless/wireless-tools
+sys-process/htop

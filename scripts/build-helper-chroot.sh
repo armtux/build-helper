@@ -359,10 +359,18 @@ ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	sys-libs/`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`
 CHROOT_RESUME_LINENO="0"
 # build kernel and dependencies before other packages
+if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided.kernel" ]
+then
+	mv "${BUILD_CONF}/target-portage/profile/package.provided.kernel" "${BUILD_CONF}/target-portage/profile/package.provided"
+fi
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -kq --with-bdeps=y `cat ${BUILD_CONF}/worlds/kernel`
 CHROOT_RESUME_LINENO="0"
+if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided" ]
+then
+	mv "${BUILD_CONF}/target-portage/profile/package.provided" "${BUILD_CONF}/target-portage/profile/package.provided.kernel"
+fi
 
 # ensure presence of /usr/lib64 to avoid potential bugs later
 # TODO: make compatible with merged-usr
@@ -832,7 +840,9 @@ if [ -e ../initramfs ]
 then
 	rm -rf ../initramfs
 fi
-cp -a ${BUILD_CONF}/initramfs ../initramfs
+cp -r ${BUILD_CONF}/initramfs ../initramfs
+chown -R 0:0 ../initramfs
+chmod 700 ../initramfs/init
 
 # backup system busybox binpkg to build minimal initramfs busybox
 mkdir /tmp/busybox /tmp/busybox-mini
