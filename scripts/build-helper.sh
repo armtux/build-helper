@@ -162,14 +162,19 @@ then
 	build_helper_usage
 fi
 
+# check if logs directory exists, otherwise create it
+if [ ! -e "${BUILD_HELPER_TREE}/logs" ]
+then
+	mkdir -p "${BUILD_HELPER_TREE}/logs"
+fi
+
+if [ "${TMUX_MODE}" = "on" ]
+then
+	tmux pipe-pane "exec cat - >> ${BUILD_HELPER_TREE}/logs/${BUILD_NAME}-${BUILD_DATE}.log"
+fi
+
 # setup chroot directory/mount structure
 build_helper_mounts() {
-
-	# check if logs directory exists, otherwise create it
-	if [ ! -e "${BUILD_HELPER_TREE}/logs"]
-	then
-		mkdir -p "${BUILD_HELPER_TREE}/logs"
-	fi
 
 	# bind mount for accessing distfiles in chroot
 	if [ ! -e "${DISTFILES}" ]
@@ -414,9 +419,32 @@ do
 	# NOTE: done?
 	# enter target chroot and run target build script
 	CHROOT_LOG="${BUILD_HELPER_TREE}/logs/${BUILD_NAME}-${BUILD_DATE}-chroot.log"
-	$([ "${TMUX_MODE}" = "on" ] && echo -n "tmux new-window -n \"${CROSSDEV_TARGET}.${BUILD_NAME}\" \"tmux capture-pane -pS - > ${CHROOT_LOG} && ")\
-		chroot . /bin/bash -x -e ${BUILD_HELPER_TREE}/scripts/build-helper-chroot.sh ${1} 2>&1 \
-		$( ([ "${TMUX_MODE}" = "on" ] && echo -n \") || echo -n "| tee ${CHROOT_LOG} &")
+	CHROOT_FULL_CMD=""
+	if [ "${TMUX_MODE}" = "on" ]
+	then
+		CHROOT_FULL_CMD="tmux new-window -n \"${CROSSDEV_TARGET}.${BUILD_NAME}\" "
+		for chroot_var in $(env | sed -E 's/^.* .*$//' | sed -E 's/^(TMUX=|TMUX_PANE|LS|LESS).*$//')
+		do
+			CHROOT_FULL_CMD="${CHROOT_FULL_CMD}-e ${chroot_var} "
+		done
+		#CHROOT_FULL_CMD="${CHROOT_FULL_CMD}\"tmux pipe-pane 'cat >>${BUILD_HELPER_TREE}/logs/${BUILD_NAME}-${BUILD_DATE}-chroot.log' "
+		#CHROOT_FULL_CMD="${CHROOT_FULL_CMD}';' set remain-on-exit on"
+		#CHROOT_FULL_CMD="${CHROOT_FULL_CMD}';' run-shell '"
+	fi
+	CHROOT_FULL_CMD="${CHROOT_FULL_CMD}chroot . /bin/bash -x -e ${BUILD_HELPER_TREE}/scripts/build-helper-chroot.sh ${1}"
+	if [ "${TMUX_MODE}" = "off" ]
+	then
+		CHROOT_FULL_CMD="${CHROOT_FULL_CMD} | tee ${CHROOT_LOG} &"
+	fi
+	${CHROOT_FULL_CMD}
+
+	if [ "${TMUX_MODE}" = "on" ]
+	then
+		CHROOT_TMUX_PANE="$(tmux list-panes -F ':#{window_index}.#{pane_index}' -t $(tmux list-windows -F '#I #W' \
+			| grep ${CROSSDEV_TARGET}.${BUILD_NAME} | sed -e 's/ .*//'))"
+		tmux set -t "${CHROOT_TMUX_PANE}" remain-on-exit on ';' \
+			pipe-pane -t "${CHROOT_TMUX_PANE}" "exec cat - >>${BUILD_HELPER_TREE}/logs/${BUILD_NAME}-${BUILD_DATE}-chroot.log"
+	fi
 
 	# bind mount for target inclusion for archiving
 	if [ "${PRIMARY_BUILD}" = "no" ]

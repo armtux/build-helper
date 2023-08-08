@@ -21,8 +21,11 @@
 # To contact the author, please contact the gentoo community:
 # https://www.gentoo.org/get-involved/
 
+# wait 2 seconds while tmux pipe-pane command kicks in
+sleep 2
+
 # find out and display $LINENO before running each line, for EXIT trap
-PS4="$((CHROOT_ERROR_LASTNO=$LINENO)): "
+PS4='+ $([ $? -eq 0 ] && export CHROOT_ERROR_LASTNO=$LINENO && echo $CHROOT_ERROR_LASTNO): '
 
 # output each running line of code
 set -x
@@ -47,17 +50,17 @@ BUILD_HELPER_CHROOT_SOURCE=""
 resume_mode() {
 	if [ "${TMUX_MODE}" = "on" ]
 	then
-		[ $? -eq 0 ] && [ "${CHROOT_ERROR}" = "no" ] && exit
+		[ ${exit_status} -eq 0 ] && [ "${CHROOT_ERROR}" = "no" ] && exit
 		CHROOT_ERROR="yes"
 		echo "chroot script exited due to error. rescue shell launched inside chroot to manually fix error."
 		/bin/bash
-		echo "rescue shell exited. enter a choice of 'resume' (or just press enter/return) to continue the script nearest \
-			possible to the previous error, 'retry' to restart the chroot script from the beginning, \
-			'abort' to exit the chroot scripti, or anything else to re-enter the chroot rescue shell."
+		echo 'rescue shell exited. enter a choice of "resume" (or just press enter/return) to continue the script nearest'
+		echo 'possible to the previous error, "retry" to restart the chroot script from the beginning,'
+		echo '"abort" to exit the chroot script, or anything else to re-enter the chroot rescue shell.'
 		read resume_choice
 		case "${resume_choice}" in
 			retry)
-				$0 $1
+				$3 $1
 			;;
 			abort)
 				exit
@@ -67,12 +70,12 @@ resume_mode() {
 				then
 					CHROOT_RESUME_LASTNO="${CHROOT_RESUME_LINENO}"
 				else
-					CHROOT_RESUME_LASTNO="${CHROOT_ERROR_LASTNO}"
+					CHROOT_RESUME_LASTNO="$2"
 				fi
 
 				if [ "${BUILD_HELPER_CHROOT_SOURCE}" = "" ]
 				then
-					BUILD_HELPER_CHROOT_SOURCE=$(sed -n '2,$' $0)
+					BUILD_HELPER_CHROOT_SOURCE=$(sed -n '1,$p' $3)
 				fi
 
 				BUILD_HELPER_CHROOT_TOP=$(echo ${BUILD_HELPER_CHROOT_SOURCE} | \
@@ -87,7 +90,11 @@ resume_mode() {
 						BUILD_HELPER_CHROOT_ADD="${CHROOT_RESUME_ADD}if true; then\n"
 					done
 				fi
-				$(echo "${BUILD_HELPER_CHROOT_TOP}\n${BUILD_HELPER_CHROOT_ADD}\n${BUILD_HELPER_CHROOT_NEW}") $1
+				CHROOT_RESUME_DATE="$(date -Iseconds)"
+				echo "${BUILD_HELPER_CHROOT_TOP}\n${BUILD_HELPER_CHROOT_ADD}\n${BUILD_HELPER_CHROOT_NEW}" \
+					> "/tmp/build-helper-chroot-resume-${CHROOT_RESUME_DATE}.sh"
+				chmod 700 "/tmp/build-helper-chroot-resume-${CHROOT_RESUME_DATE}.sh"
+				/tmp/build-helper-chroot-resume-${CHROOT_RESUME_DATE}.sh $1
 			;;
 			*)
 				resume_mode
@@ -96,7 +103,7 @@ resume_mode() {
 	fi
 }
 
-trap resume_mode EXIT
+trap 'exit_status=$?; resume_mode $1 $CHROOT_ERROR_LASTNO $0' EXIT
 
 # for resume_mode: start cutting at whatever LINENO this is. above also needs to be run upon resuming
 CHROOT_RESUME_TOP_END="$LINENO"
@@ -130,7 +137,7 @@ then
 		mv /etc/portage/gentoo.conf.backup /etc/portage/repos.conf/gentoo.conf
 		# backup ::gentoo mirror snapshot, then sync with git
 		mkdir /var/db/repos/gentoo.webrsync
-		mv /var/db/repos/gentoo/* /var/db/repos/gentoo.webrsync/
+		mv /var/db/repos/gentoo/* /var/db/repos/gentoo/.editorconfig /var/db/repos/gentoo.webrsync/
 		emerge --sync
 	# sync build history repositories using git
 	else
@@ -166,8 +173,12 @@ then
 		emerge -1kq perl
 		#emerge -1kq perl dev-perl/Locale-gettext dev-perl/Pod-Parser
 		perl-cleaner --all -- -q
+		# temporarily avoid trying to build rust cross-toolchains for first build as crossdev is missing
+		sed -i -e 's/I_KNOW_WHAT_I_AM_DOING_CROSS/#I_KNOW_WHAT_I_AM_DOING_CROSS/' /etc/portage/make.conf
 		# build the rest of world, some of which is not yet installed
 		emerge -ekq --with-bdeps=y @world
+		# revert avoiding rust cross-toolchains for rebuilding rust after crossdev targets are built
+		sed -i -e 's/#I_KNOW_WHAT_I_AM_DOING_CROSS/I_KNOW_WHAT_I_AM_DOING_CROSS/' /etc/portage/make.conf
 	# update host environment from build history
 	else
 		# update host toolchain
@@ -217,6 +228,8 @@ then
 			# run crossdev and save result as a skeleton for all targets using the same toolchain
 			crossdev -P -k -t ${unique_target}
 			mv /usr/${unique_target} /usr/${unique_target}.skeleton
+			# symlink skeleton directory to crossdev target toolchain location for the time being
+			ln -s /usr/${unique_target} /usr/${unique_target}.skeleton
 		fi
 		# make sure equivalent target toolchain symlinks to clang/llvm binaries are present
 		if [ ! -e /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-clang ]
@@ -240,13 +253,24 @@ then
 		fi
 
 		# choose latest crossdev toolchain versions
-		eselect gcc set ${unique_target}-`ls -1v /usr/lib/gcc/x86_64-gentoo-linux-musl | tail -n 1`
-		eselect binutils set ${unique_target}-`ls -1v /usr/x86_64-gentoo-linux-musl/binutils-bin | grep -v lib | tail -n 1`
+		eselect gcc set ${unique_target}-`ls -1v /usr/lib/gcc/${unique_target} | tail -n 1`
+		eselect binutils set ${unique_target}-`ls -1v /usr/x86_64-gentoo-linux-musl/${unique_target}/binutils-bin | grep -v lib | tail -n 1`
 
 		# trigger rust rebuild below if rust cross-toolchain is currently missing for new crossdev targets
 		if [ ! -e /usr/lib/rust/lib/rustlib/`cat /etc/portage/env/dev-lang/rust | grep ":${unique_target}\"" | cut -d ':' -f2` ]
 		then
 			REBUILD_RUST="yes"
+			# install rust dependencies into crossdev target skeleton
+			if [ -h /usr/${unique_target}.skeleton/etc/portage ]
+			then
+				rm /usr/${unique_target}.skeleton/etc/portage
+			elif [ -e /usr/${unique_target}.skeleton/etc/portage ]
+			then
+				rm -rf /usr/${unique_target}.skeleton/etc/portage
+			fi
+			TEMP_TARGET="$(ls -1 ${BUILD_CONF}/.. | grep ${unique_target} | head -n 1)"
+			ln -s ${BUILD_CONF}/../${TEMP_TARGET}/target-portage /usr/${unique_target}.skeleton/etc/portage
+			${unique_target}-emerge -uDNkq sys-libs/zlib dev-libs/openssl sys-libs/libunwind sys-libs/llvm-libunwind
 		# signal to non-chroot script that crossdev target environments are ready for next targets in line for chroot
 		# TODO: replace with flock
 		else
@@ -306,7 +330,12 @@ if [ ! -e /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -a /usr/${CROSSDEV_TARGET}.skeleton/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/
-	rm -rf /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage
+	if [ -h /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage ]
+	then
+		rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage
+	else
+		rm -rf /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage
+	fi
 	ln -s ${BUILD_CONF}/target-portage /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
