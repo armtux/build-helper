@@ -1,3 +1,5 @@
+acct-group/ntp
+acct-user/ntp
 app-arch/zip
 app-editors/vim
 app-portage/smart-live-rebuild

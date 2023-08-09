@@ -24,9 +24,6 @@
 # wait 2 seconds while tmux pipe-pane command kicks in
 sleep 2
 
-# find out and display $LINENO before running each line, for EXIT trap
-PS4='+ $([ $? -eq 0 ] && export CHROOT_ERROR_LASTNO=$LINENO && echo $CHROOT_ERROR_LASTNO): '
-
 # output each running line of code
 set -x
 # exit on error
@@ -50,14 +47,16 @@ BUILD_HELPER_CHROOT_SOURCE=""
 resume_mode() {
 	if [ "${TMUX_MODE}" = "on" ]
 	then
-		[ ${exit_status} -eq 0 ] && [ "${CHROOT_ERROR}" = "no" ] && exit
+		[ $4 -eq 0 ] && [ "${CHROOT_ERROR}" = "no" ] && exit
 		CHROOT_ERROR="yes"
+		set +x
 		echo "chroot script exited due to error. rescue shell launched inside chroot to manually fix error."
 		/bin/bash
 		echo 'rescue shell exited. enter a choice of "resume" (or just press enter/return) to continue the script nearest'
 		echo 'possible to the previous error, "retry" to restart the chroot script from the beginning,'
 		echo '"abort" to exit the chroot script, or anything else to re-enter the chroot rescue shell.'
 		read resume_choice
+		set -x
 		case "${resume_choice}" in
 			retry)
 				$3 $1
@@ -103,7 +102,8 @@ resume_mode() {
 	fi
 }
 
-trap 'exit_status=$?; resume_mode $1 $CHROOT_ERROR_LASTNO $0' EXIT
+trap 'CHROOT_ERROR_OLDNO=$CHROOT_ERROR_LASTNO; CHROOT_ERROR_LASTNO=$LINENO' DEBUG
+trap 'resume_mode $1 $CHROOT_ERROR_OLDNO $0 $?' EXIT
 
 # for resume_mode: start cutting at whatever LINENO this is. above also needs to be run upon resuming
 CHROOT_RESUME_TOP_END="$LINENO"
@@ -229,7 +229,7 @@ then
 			crossdev -P -k -t ${unique_target}
 			mv /usr/${unique_target} /usr/${unique_target}.skeleton
 			# symlink skeleton directory to crossdev target toolchain location for the time being
-			ln -s /usr/${unique_target} /usr/${unique_target}.skeleton
+			ln -s /usr/${unique_target}.skeleton /usr/${unique_target}
 		fi
 		# make sure equivalent target toolchain symlinks to clang/llvm binaries are present
 		if [ ! -e /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-clang ]
@@ -242,6 +242,7 @@ then
 			ln -s x86_64-gentoo-linux-musl-llvm-config /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-llvm-config
 			#ln -s x86_64-gentoo-linux-musl-clang /usr/bin/${unique_target}-clang
 			#ln -s x86_64-gentoo-linux-musl-llvm-config /usr/bin/${unique_target}-llvm-config
+			touch /etc/clang/gentoo-gcc-install.cfg
 		fi
 		# locale-gen is usually not present for musl (host environment), but is needed if target toolchain is glibc
 		if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`" = "glibc" ]
@@ -268,9 +269,24 @@ then
 			then
 				rm -rf /usr/${unique_target}.skeleton/etc/portage
 			fi
-			TEMP_TARGET="$(ls -1 ${BUILD_CONF}/.. | grep ${unique_target} | head -n 1)"
-			ln -s ${BUILD_CONF}/../${TEMP_TARGET}/target-portage /usr/${unique_target}.skeleton/etc/portage
-			${unique_target}-emerge -uDNkq sys-libs/zlib dev-libs/openssl sys-libs/libunwind sys-libs/llvm-libunwind
+			if [ -h /usr/${unique_target}.skeleton/packages ]
+			then
+				rm /usr/${unique_target}.skeleton/packages
+			elif [ -e /usr/${unique_target}.skeleton/packages ]
+			then
+				rm -rf /usr/${unique_target}.skeleton/packages
+			fi
+			if [ "${unique_target}" = "${CROSSDEV_TARGET}" ]
+			then
+				ln -s ${BUILD_CONF}/target-portage /usr/${unique_target}.skeleton/etc/portage
+				ln -s ${BUILD_PKGS} /usr/${unique_target}.skeleton/packages
+			else
+				TEMP_TARGET="$(ls -1 ${BUILD_CONF}/.. | grep ${unique_target} | head -n 1)"
+				ln -s ${BUILD_CONF}/../${TEMP_TARGET}/target-portage /usr/${unique_target}.skeleton/etc/portage
+				ln -s ${BUILD_CONF}/../${TEMP_TARGET} /usr/${unique_target}.skeleton/packages
+			fi
+			${unique_target}-emerge -uDNkq sys-libs/musl sys-devel/gcc
+			${unique_target}-emerge -uDNkq sys-libs/zlib dev-libs/openssl sys-libs/llvm-libunwind
 		# signal to non-chroot script that crossdev target environments are ready for next targets in line for chroot
 		# TODO: replace with flock
 		else
@@ -343,7 +359,10 @@ CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 # symlink crossdev target environment for this build to generic crossdev toolchain location
 ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME} /usr/${CROSSDEV_TARGET}
 # store crossdev target binpkg files in build-helper directory
-if [ -e /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages ]
+if [ -h /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages ]
+then
+	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages
+elif [ -e /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages ]
 then
 	rm -rf /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages
 fi
@@ -431,6 +450,10 @@ CHROOT_RESUME_LINENO="0"
 cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
 yes "" | ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make oldconfig
 ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
+
+# make sure ld-musl-${ARCH}.path exists
+cat /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/ld.so.conf.d/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/ld.so.conf | grep -v include \
+	> /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/ld-musl-${BUILD_ARCH}.path
 
 # copy system busybox configuration to crossdev target
 # TODO: only do this for embedded gentoo (done?)
