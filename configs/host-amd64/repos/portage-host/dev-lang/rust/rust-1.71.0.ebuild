@@ -532,6 +532,7 @@ src_configure() {
 		if [[ "${cross_toolchain}" == *-musl* ]]; then
 			cat <<- _EOF_ >> "${S}"/config.toml
 				musl-root = "$(${cross_toolchain}-gcc -print-sysroot)/usr"
+				crt-static = false
 			_EOF_
 		fi
 

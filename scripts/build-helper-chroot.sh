@@ -72,28 +72,26 @@ resume_mode() {
 					CHROOT_RESUME_LASTNO="$2"
 				fi
 
-				if [ "${BUILD_HELPER_CHROOT_SOURCE}" = "" ]
-				then
-					BUILD_HELPER_CHROOT_SOURCE=$(sed -n '1,$p' $3)
-				fi
+				CHROOT_RESUME_DATE="$(date -Iseconds)"
+				BUILD_HELPER_CHROOT_SOURCE="/tmp/build-helper-chroot-resume-${CHROOT_RESUME_DATE}.sh"
+				#sed -n '1,$p' $3 > ${BUILD_HELPER_CHROOT_SOURCE}
 
-				BUILD_HELPER_CHROOT_TOP=$(echo ${BUILD_HELPER_CHROOT_SOURCE} | \
-								sed -n "1,${CHROOT_RESUME_TOP_END}p")
-				BUILD_HELPER_CHROOT_NEW=$(echo ${BUILD_HELPER_CHROOT_SOURCE} | \
-								sed -n "${CHROOT_RESUME_LASTNO},\$p")
-				BUILD_HELPER_CHROOT_ADD="CHROOT_RESUME_DEPTH=\"${CHROOT_RESUME_DEPTH}\"\n"
+				sed -n "1,${CHROOT_RESUME_TOP_END}p" $3 >> ${BUILD_HELPER_CHROOT_SOURCE}
+
+				echo "CHROOT_RESUME_DEPTH=\"${CHROOT_RESUME_DEPTH}\"" >> ${BUILD_HELPER_CHROOT_SOURCE}
+
 				if [ "${CHROOT_RESUME_DEPTH}" -gt "0" ]
 				then
 					for resume_depth in $(seq $CHROOT_RESUME_DEPTH)
 					do
-						BUILD_HELPER_CHROOT_ADD="${CHROOT_RESUME_ADD}if true; then\n"
+						echo "${CHROOT_RESUME_ADD}if true; then" >> ${BUILD_HELPER_CHROOT_SOURCE}
 					done
 				fi
-				CHROOT_RESUME_DATE="$(date -Iseconds)"
-				echo "${BUILD_HELPER_CHROOT_TOP}\n${BUILD_HELPER_CHROOT_ADD}\n${BUILD_HELPER_CHROOT_NEW}" \
-					> "/tmp/build-helper-chroot-resume-${CHROOT_RESUME_DATE}.sh"
-				chmod 700 "/tmp/build-helper-chroot-resume-${CHROOT_RESUME_DATE}.sh"
-				/tmp/build-helper-chroot-resume-${CHROOT_RESUME_DATE}.sh $1
+
+				sed -n "${CHROOT_RESUME_LASTNO},\$p" $3 >> ${BUILD_HELPER_CHROOT_SOURCE}
+
+				chmod 700 "${BUILD_HELPER_CHROOT_SOURCE}"
+				${BUILD_HELPER_CHROOT_SOURCE} $1
 			;;
 			*)
 				resume_mode
@@ -174,11 +172,11 @@ then
 		#emerge -1kq perl dev-perl/Locale-gettext dev-perl/Pod-Parser
 		perl-cleaner --all -- -q
 		# temporarily avoid trying to build rust cross-toolchains for first build as crossdev is missing
-		sed -i -e 's/I_KNOW_WHAT_I_AM_DOING_CROSS/#I_KNOW_WHAT_I_AM_DOING_CROSS/' /etc/portage/make.conf
+		sed -i -e 's/^I_KNOW_WHAT_I_AM_DOING_CROSS/#I_KNOW_WHAT_I_AM_DOING_CROSS/' /etc/portage/make.conf
 		# build the rest of world, some of which is not yet installed
 		emerge -ekq --with-bdeps=y @world
 		# revert avoiding rust cross-toolchains for rebuilding rust after crossdev targets are built
-		sed -i -e 's/#I_KNOW_WHAT_I_AM_DOING_CROSS/I_KNOW_WHAT_I_AM_DOING_CROSS/' /etc/portage/make.conf
+		sed -i -e 's/^#I_KNOW_WHAT_I_AM_DOING_CROSS/I_KNOW_WHAT_I_AM_DOING_CROSS/' /etc/portage/make.conf
 	# update host environment from build history
 	else
 		# update host toolchain
@@ -227,6 +225,11 @@ then
 			#ln -s lib /usr/${unique_target}/usr/lib64
 			# run crossdev and save result as a skeleton for all targets using the same toolchain
 			crossdev -P -k -t ${unique_target}
+			# recompile crossdev's gcc to enable openmp support
+			if ${unique_target}-gcc -v 2>&1 | grep -q disable-libgomp
+			then
+				emerge -1q cross-${unique_target}/gcc
+			fi
 			mv /usr/${unique_target} /usr/${unique_target}.skeleton
 			# symlink skeleton directory to crossdev target toolchain location for the time being
 			ln -s /usr/${unique_target}.skeleton /usr/${unique_target}
@@ -242,7 +245,6 @@ then
 			ln -s x86_64-gentoo-linux-musl-llvm-config /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-llvm-config
 			#ln -s x86_64-gentoo-linux-musl-clang /usr/bin/${unique_target}-clang
 			#ln -s x86_64-gentoo-linux-musl-llvm-config /usr/bin/${unique_target}-llvm-config
-			touch /etc/clang/gentoo-gcc-install.cfg
 		fi
 		# locale-gen is usually not present for musl (host environment), but is needed if target toolchain is glibc
 		if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`" = "glibc" ]
@@ -256,6 +258,9 @@ then
 		# choose latest crossdev toolchain versions
 		eselect gcc set ${unique_target}-`ls -1v /usr/lib/gcc/${unique_target} | tail -n 1`
 		eselect binutils set ${unique_target}-`ls -1v /usr/x86_64-gentoo-linux-musl/${unique_target}/binutils-bin | grep -v lib | tail -n 1`
+
+		# use clang target --gcc-install-dir autodetection, don't rely on gentoo defaults
+		echo > /etc/clang/gentoo-gcc-install.cfg
 
 		# trigger rust rebuild below if rust cross-toolchain is currently missing for new crossdev targets
 		if [ ! -e /usr/lib/rust/lib/rustlib/`cat /etc/portage/env/dev-lang/rust | grep ":${unique_target}\"" | cut -d ':' -f2` ]

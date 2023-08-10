@@ -7,4 +7,5 @@ net-misc/chrony
 net-wireless/bluez
 net-wireless/iw
 net-wireless/wireless-tools
+net-wireless/wpa_supplicant
 sys-process/htop

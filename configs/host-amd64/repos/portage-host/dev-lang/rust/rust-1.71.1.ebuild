@@ -166,9 +166,31 @@ PATCHES=(
 	"${FILESDIR}"/1.70.0-ignore-broken-and-non-applicable-tests.patch
 	"${FILESDIR}"/1.62.1-musl-dynamic-linking.patch
 	"${FILESDIR}"/1.67.0-doc-wasm.patch
+	"${FILESDIR}"/1.69.0-musl-1.2.4.patch
 )
 
 S="${WORKDIR}/${MY_P}-src"
+
+eapply_crate() {
+	pushd "${1:?}" > /dev/null || die
+
+	local patch="${2:?}"
+	eapply "${patch}"
+
+	local cargo='.cargo-checksum.json'
+	local _ f
+	grep -- '^[+][+][+] ' "${patch}" | while read -r _ f; do
+		local file="${f#*/}"
+		local orig_sum="$(grep -Eo "\"${file}\":\"[0-9a-fA-F]+\"" "${cargo}" |
+			cut -d':' -f2 | tr -d '"')" || die
+		if [ -n "${orig_sum}" ]; then
+			local sum="$(sha256sum "${file}")" || die
+			sed -i "s|${orig_sum}|${sum%% *}|" "${cargo}" || die
+		fi
+	done
+
+	popd > /dev/null || die
+}
 
 toml_usex() {
 	usex "${1}" true false
@@ -283,10 +305,36 @@ esetup_unwind_hack() {
 }
 
 src_prepare() {
+	eapply_crate vendor/getrandom-0.2.8 "${FILESDIR}"/1.69.0-musl-1.2.4-getrandom.patch
+	eapply_crate vendor/libc-0.2.138 "${FILESDIR}"/1.69.0-musl-1.2.4-libc.patch
+	eapply_crate vendor/libc-0.2.139 "${FILESDIR}"/1.69.0-musl-1.2.4-libc.patch
+	eapply_crate vendor/libc-0.2.140 "${FILESDIR}"/1.69.0-musl-1.2.4-libc.patch
+	eapply_crate vendor/libc-0.2.143 "${FILESDIR}"/1.69.0-musl-1.2.4-libc.patch
+	eapply_crate vendor/libc "${FILESDIR}"/1.69.0-musl-1.2.4-libc.patch
+
 	if ! use system-bootstrap; then
 		has_version sys-devel/gcc || esetup_unwind_hack
 		local rust_stage0_root="${WORKDIR}"/rust-stage0
 		local rust_stage0="rust-${RUST_STAGE0_VERSION}-$(rust_abi)"
+
+		if use elibc_musl; then
+			local libstd
+			for libstd in "${WORKDIR}/${rust_stage0}/rust-std-$(rust_abi)/lib/rustlib/$(rust_abi)"/lib/libstd-*.rlib; do
+				"$(tc-getOBJCOPY)" \
+					--redefine-sym=stat64=stat \
+					--redefine-sym=fstat64=fstat \
+					--redefine-sym=lstat64=lstat \
+					--redefine-sym=open64=open \
+					--redefine-sym=readdir64=readdir \
+					--redefine-sym=fstatat64=fstatat \
+					--redefine-sym=lseek64=lseek \
+					--redefine-sym=ftruncate64=ftruncate \
+					"${libstd}" \
+					"${libstd}.out" || die
+
+				mv "${libstd}.out" "${libstd}" || die
+			done
+		fi
 
 		"${WORKDIR}/${rust_stage0}"/install.sh --disable-ldconfig \
 			--without=rust-docs-json-preview,rust-docs --destdir="${rust_stage0_root}" --prefix=/ || die
@@ -531,6 +579,7 @@ src_configure() {
 		if [[ "${cross_toolchain}" == *-musl* ]]; then
 			cat <<- _EOF_ >> "${S}"/config.toml
 				musl-root = "$(${cross_toolchain}-gcc -print-sysroot)/usr"
+				crt-static = false
 			_EOF_
 		fi
 
