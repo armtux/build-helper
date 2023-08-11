@@ -1,6 +1,8 @@
 app-admin/pwgen
+app-admin/syslog-ng
 app-editors/vim
 app-misc/tmux
+app-shells/bash-completion
 dev-vcs/git
 net-firewall/iptables
 net-misc/chrony
@@ -9,3 +11,4 @@ net-wireless/iw
 net-wireless/wireless-tools
 net-wireless/wpa_supplicant
 sys-process/htop
+www-client/pybugz
