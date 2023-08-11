@@ -41,7 +41,7 @@ CHROOT_RESUME_DEPTH="0"
 CHROOT_ERROR="no"
 
 # initially set to empty
-BUILD_HELPER_CHROOT_SOURCE=""
+BUILD_HELPER_CHROOT_SOURCE="$(readlink -f $0)"
 
 # EXIT trap triggering rescue shell and resume dialog
 resume_mode() {
@@ -52,7 +52,7 @@ resume_mode() {
 		set +x
 		echo "chroot script exited due to error. rescue shell launched inside chroot to manually fix error."
 		/bin/bash
-		echo 'rescue shell exited. enter a choice of "resume" (or just press enter/return) to continue the script nearest'
+		echo 'rescue shell exited. enter a choice of "resume" to continue the script nearest'
 		echo 'possible to the previous error, "retry" to restart the chroot script from the beginning,'
 		echo '"abort" to exit the chroot script, or anything else to re-enter the chroot rescue shell.'
 		read resume_choice
@@ -74,7 +74,6 @@ resume_mode() {
 
 				CHROOT_RESUME_DATE="$(date -Iseconds)"
 				BUILD_HELPER_CHROOT_SOURCE="/tmp/build-helper-chroot-resume-${CHROOT_RESUME_DATE}.sh"
-				#sed -n '1,$p' $3 > ${BUILD_HELPER_CHROOT_SOURCE}
 
 				sed -n "1,${CHROOT_RESUME_TOP_END}p" $3 >> ${BUILD_HELPER_CHROOT_SOURCE}
 
@@ -101,7 +100,7 @@ resume_mode() {
 }
 
 trap 'CHROOT_ERROR_OLDNO=$CHROOT_ERROR_LASTNO; CHROOT_ERROR_LASTNO=$LINENO' DEBUG
-trap 'resume_mode $1 $CHROOT_ERROR_OLDNO $0 $?' EXIT
+trap 'resume_mode $1 $CHROOT_ERROR_OLDNO $BUILD_HELPER_CHROOT_SOURCE $?' EXIT
 
 # for resume_mode: start cutting at whatever LINENO this is. above also needs to be run upon resuming
 CHROOT_RESUME_TOP_END="$LINENO"
@@ -139,6 +138,7 @@ then
 		emerge --sync
 	# sync build history repositories using git
 	else
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		emerge --sync || (rm -rf /var/db/repos/gentoo && emerge --sync)
 	fi
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
@@ -179,6 +179,7 @@ then
 		sed -i -e 's/^#I_KNOW_WHAT_I_AM_DOING_CROSS/I_KNOW_WHAT_I_AM_DOING_CROSS/' /etc/portage/make.conf
 	# update host environment from build history
 	else
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		# update host toolchain
 		emerge -1ukq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/musl
 		# choose latest toolchain versions
@@ -332,6 +333,7 @@ then
 	fi
 # wait until crossdev target ready signal is received for next crossdev targets
 else
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	until [ -e /tmp/cross_ready.${CROSSDEV_TARGET} ]
 	do
 		sleep 5
@@ -561,6 +563,7 @@ then
 # if excluded file backup directory already exists, use its /var/db/pkg (for embedded gentoo)
 elif [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	# TODO: check if directory exists instead of allowing an error (done? why is rmdir ever needed?)
 	#set +e
 	if [ -d ../squashfs/var/db/pkg ]
@@ -571,6 +574,7 @@ then
 	mv ../squashfs.exclude/pkg.base ../squashfs/var/db/pkg
 elif [ -e ../squashfs.exclude/pkg.base ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir -p "../squashfs.exclude/${BUILD_DATE}"
 	mv ../squashfs.exclude/pkg.base "../squashfs.exclude/${BUILD_DATE}/pkg.base.old"
 fi
@@ -737,6 +741,7 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mv ../squashfs/var/db/pkg ../squashfs.exclude/pkg.base
 else
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -a ../squashfs/var/db/pkg ../squashfs.exclude/pkg.base
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
@@ -751,6 +756,7 @@ then
 # prepare final build extra packages directory if present from build history
 # TODO: avoid letting errors pass (done?)
 else
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir ../squashfs.exclude/pkg.tmp
 	mount -t tmpfs tmpfs ../squashfs.exclude/pkg.tmp
 	mkdir ../squashfs.exclude/pkg.tmp/{b,e,w,u,m}
@@ -1031,6 +1037,7 @@ then
 	fi
 # copy final build kernel to output directory (x86_64 uefi)
 else
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp "arch/${BUILD_ARCH}/boot/bzImage" "../${BUILD_NAME}-${BUILD_DATE}/EFI/boot/bootx64.efi"
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
@@ -1092,6 +1099,7 @@ then
 	fi
 # x86_64 uefi support
 else
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -r "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/${BUILD_NAME}-${BUILD_DATE}/*" "${BUILD_DEST}/"
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"

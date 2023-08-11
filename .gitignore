@@ -1,5 +1,6 @@
 # ignore local directories containing logs, downloaded sources and generated files
 /builds/
+/configs/host-amd64/target-portage/._cfg*
 /distfiles/
 /history/
 /logs/
