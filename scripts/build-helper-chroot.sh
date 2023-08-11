@@ -505,7 +505,7 @@ CHROOT_RESUME_LINENO="0"
 # build crossdev target live ebuilds with updates
 CHROOT_RESUME_LINENO="$LINENO"
 CHOST=${CROSSDEV_TARGET} PORTAGE_CONFIGROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
-ROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} SYSROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} smart-live-rebuild
+ROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} SYSROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} smart-live-rebuild -- -k
 CHROOT_RESUME_LINENO="0"
 
 # prepare sources for emerge checks (again?)
@@ -911,9 +911,9 @@ chmod 700 ../initramfs/init
 mkdir /tmp/busybox /tmp/busybox-mini
 # TODO: avoid letting errors pass (done?)
 #set +e
-if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 | wc -l)" -gt "0" ]
+if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox/busybox*.xpak | wc -l)" -gt "0" ]
 then
-	mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 /tmp/busybox/
+	mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox/busybox*.xpak /tmp/busybox/
 fi
 if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep busybox | wc -l)" -gt "0" ]
 then
@@ -927,7 +927,7 @@ BINPKG_COMPRESS="bzip2" USE="-make-symlinks -syslog" ${CROSSDEV_TARGET}-emerge -
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1Bq busybox
 CHROOT_RESUME_LINENO="0"
 # move minimal busybox binpkg to temporary work directory
-mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox*.tbz2 /tmp/busybox-mini/
+mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox/busybox*.xpak /tmp/busybox-mini/
 # restore system busybox binpkg
 # TODO: avoid letting errors pass (done?)
 #set +e
@@ -937,12 +937,12 @@ then
 fi
 if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep busybox | wc -l)" -gt "0" ]
 then
-	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox-*
+	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox*
 fi
 #set -e
 # extract minimal busybox binpkg and place static binary in initramfs
 cd /tmp/busybox-mini
-tar xjpf busybox*.tbz2
+tar xjpf busybox*.xpak
 cp -a bin/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/bin/
 rm -rf /tmp/busybox*
 

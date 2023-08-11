@@ -4,6 +4,10 @@ app-arch/zip
 app-editors/vim
 app-portage/smart-live-rebuild
 app-text/scdoc
+cross-aarch64-unknown-linux-musl/binutils
+cross-aarch64-unknown-linux-musl/gcc
+cross-aarch64-unknown-linux-musl/linux-headers
+cross-aarch64-unknown-linux-musl/musl
 dev-lang/nasm
 dev-lang/spidermonkey
 dev-lang/yasm
