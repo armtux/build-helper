@@ -923,8 +923,8 @@ fi
 # use minimal busybox configuration to build initramfs busybox
 cp ${BUILD_CONF}/busybox-mini.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
 CHROOT_RESUME_LINENO="$LINENO"
-BINPKG_COMPRESS="bzip2" USE="-make-symlinks -syslog" ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
-	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1Bq busybox
+BINPKG_COMPRESS="bzip2" USE="-make-symlinks -syslog -pam static savedconfig static-libs" ${CROSSDEV_TARGET}-emerge \
+	--root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} --sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1q busybox
 CHROOT_RESUME_LINENO="0"
 # move minimal busybox binpkg to temporary work directory
 mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox/busybox*.xpak /tmp/busybox-mini/
@@ -945,6 +945,10 @@ cd /tmp/busybox-mini
 tar xjpf busybox*.xpak
 cp -a bin/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/bin/
 rm -rf /tmp/busybox*
+
+#
+cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/loop0 /dev/loop1 /dev/loop2 /dev/random /dev/urandom \
+	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/dev/
 
 # build crossdev target kernel and install modules in final build directory
 # TODO: remove old kernel modules (done?)

@@ -109,7 +109,7 @@ export BUILD_DATE="`date -Iseconds`"
 export BUILD_DEST="${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}.${BUILD_DATE}"
 # path to finished work's squashfs backup
 #export BUILD_HIST="${BUILD_HIST:-`ls -1 ${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}*/dev.sqfs | tail -n 1`}"
-export BUILD_HIST="${BUILD_HIST:-`[ -d ${BUILD_HELPER_TREE}/history ] && ls -1 ${BUILD_HELPER_TREE}/history | tail -n 1`}"
+export BUILD_HIST="${BUILD_HIST:-`[ -d ${BUILD_HELPER_TREE}/history ] && [ "$(ls -1 ${BUILD_HELPER_TREE}/history | wc -l)" -gt "0" ] && ls -1 ${BUILD_HELPER_TREE}/history/* | tail -n 1`}"
 # history archive format
 export HIST_TYPE="${HIST_TYPE:-squashfs}"
 #export HIST_TYPE="${HIST_TYPE:-files}"
