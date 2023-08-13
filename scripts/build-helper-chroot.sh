@@ -149,8 +149,8 @@ then
 	then
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		emerge -1kq portage
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
-	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	#set -e
 	# prepare host environment if no history available
 	if [ "${FIRST_BUILD}" = "yes" ]
@@ -206,8 +206,8 @@ then
 		emerge -uDNkq --with-bdeps=y @world
 		# choose latest rust version
 		eselect rust update
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
-	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	# re-source to apply eselect changes to current shell
 	source /etc/profile
 
@@ -314,8 +314,8 @@ then
 		do
 			touch /tmp/cross_ready.${unique_target}
 		done
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
-	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 	# re-source to apply eselect changes to current shell
 	source /etc/profile
@@ -360,8 +360,8 @@ then
 		rm -rf /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage
 	fi
 	ln -s ${BUILD_CONF}/target-portage /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # symlink crossdev target environment for this build to generic crossdev toolchain location
 ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME} /usr/${CROSSDEV_TARGET}
@@ -404,8 +404,8 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	sed -i -e 's/^INSTALL_MASK/#INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
 	sed -i -e 's@^sys-devel/gcc@#sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # build libc before other packages
 CHROOT_RESUME_LINENO="$LINENO"
@@ -473,8 +473,8 @@ then
 		mkdir -p /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps
 	fi
 	cp ${BUILD_CONF}/busybox.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 #sed -i -e 's@^sys-kernel/linux-headers@#sys-kernel/linux-headers@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/profile/package.provided
 #sed -i -e 's@^dev-libs/gmp@#dev-libs/gmp@' -e 's@^dev-libs/mpfr@#dev-libs/mpfr@' -e 's@^dev-libs/mpc@#dev-libs/mpc@' \
@@ -539,7 +539,7 @@ then
 	then
 		PATCH_SQUASHFS="yes"
 	fi
-	mkdir ../squashfs
+	mkdir -p ../squashfs/etc
 fi
 
 # uncomment crossdev target INSTALL_MASK (needed for embedded gentoo)
@@ -549,8 +549,8 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	sed -i -e 's/^#INSTALL_MASK/INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
 	sed -i -e 's@^#sys-devel/gcc@sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 #sed -i -e 's@^#sys-kernel/linux-headers@sys-kernel/linux-headers@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/profile/package.provided
 #sed -i -e 's@^#dev-libs/gmp@dev-libs/gmp@' -e 's@^#dev-libs/mpfr@dev-libs/mpfr@' -e 's@^#dev-libs/mpc@dev-libs/mpc@' \
 #	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/profile/package.provided
@@ -560,6 +560,7 @@ if [ ! -e ../squashfs.exclude ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir -p ../squashfs.exclude
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 # if excluded file backup directory already exists, use its /var/db/pkg (for embedded gentoo)
 elif [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
 then
@@ -572,13 +573,14 @@ then
 	fi
 	#set -e
 	mv ../squashfs.exclude/pkg.base ../squashfs/var/db/pkg
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 elif [ -e ../squashfs.exclude/pkg.base ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir -p "../squashfs.exclude/${BUILD_DATE}"
 	mv ../squashfs.exclude/pkg.base "../squashfs.exclude/${BUILD_DATE}/pkg.base.old"
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # copy target portage configuration from cross-build environment to final build directory
 if [ ! -e ../squashfs/etc ]
@@ -596,8 +598,8 @@ if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/locale.gen ../squashfs/etc/locale.gen
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # install binpkg files in final build directory
 FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs --config-root=../squashfs \
@@ -612,8 +614,8 @@ then
 	mkdir ../squashfs/{dev,home,media,mnt,opt,proc,root,sys}
 	chmod 700 ../squashfs/root
 	cp -a /dev/null /dev/console /dev/tty /dev/loop0 /dev/random /dev/urandom ../squashfs/dev/
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # symlink gcc libaries in /lib and clean up old symlinks first if present
 # TODO: make compatible with merged-usr
@@ -657,8 +659,8 @@ then
 		mv "${i}" "../../${i}"
 	done
 	cd ../..
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # make sure all packages place their files in same directories
 # TODO: make compatible with merged-usr
@@ -728,8 +730,8 @@ then
 	#done
 	#CHROOT_RESUME_LINENO="0"
 	mv ../squashfs/lib/modules/* ../squashfs.exclude/${BUILD_DATE}/modules
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 #set -e
 
 #${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs -Kq @module-rebuild
@@ -965,8 +967,8 @@ if [ "${PATCH_SQUASHFS}" = "yes" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	patch -p0 < "${BUILD_CONF}/base.patch"
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # edit embedded gentoo init script runlevels
 # TODO: remove this, should be done by users after build
@@ -1017,8 +1019,8 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm usr/initramfs_data.cpio
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 #TODO: Implement for non-uefi and other architectures
 mkdir -p "../${BUILD_NAME}-${BUILD_DATE}/EFI/boot"
@@ -1058,8 +1060,8 @@ then
 	else
 		cp ../base-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/base
 	fi
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # copy userland extra packages to output directory if separate from kernel
 if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
@@ -1073,8 +1075,8 @@ then
 	else
 		cp ../extra-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/extra
 	fi
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # fully clean kernel source directory (required for some kernel security features)
 # TODO: add option to skip cleanup

@@ -10,5 +10,6 @@ net-wireless/bluez
 net-wireless/iw
 net-wireless/wireless-tools
 net-wireless/wpa_supplicant
+sys-fs/squashfs-tools
 sys-process/htop
 www-client/pybugz
