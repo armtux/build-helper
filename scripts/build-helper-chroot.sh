@@ -513,6 +513,7 @@ ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
 
 # crossdev target depclean
 CHROOT_RESUME_LINENO="$LINENO"
+UNINSTALL_IGNORE="/lib/modules/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage" \
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -q --depclean
 CHROOT_RESUME_LINENO="0"
