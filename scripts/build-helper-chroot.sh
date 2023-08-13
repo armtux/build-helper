@@ -420,7 +420,7 @@ then
 fi
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
-	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -kq --with-bdeps=y `cat ${BUILD_CONF}/worlds/kernel`
+	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -ukq --with-bdeps=y `cat ${BUILD_CONF}/worlds/kernel`
 CHROOT_RESUME_LINENO="0"
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided" ]
 then
@@ -513,7 +513,7 @@ ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
 
 # crossdev target depclean
 CHROOT_RESUME_LINENO="$LINENO"
-UNINSTALL_IGNORE="/lib/modules/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage" \
+UNINSTALL_IGNORE="/lib/modules/* /etc/portage" \
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -q --depclean
 CHROOT_RESUME_LINENO="0"
