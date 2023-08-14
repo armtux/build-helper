@@ -282,16 +282,17 @@ then
 			then
 				rm -rf /usr/${unique_target}.skeleton/packages
 			fi
+			TEMP_TARGET="$(ls -1 ${BUILD_CONF}/.. | grep ${unique_target} | head -n 1)"
 			if [ "${unique_target}" = "${CROSSDEV_TARGET}" ]
 			then
 				ln -s ${BUILD_CONF}/target-portage /usr/${unique_target}.skeleton/etc/portage
 				ln -s ${BUILD_PKGS} /usr/${unique_target}.skeleton/packages
 			else
-				TEMP_TARGET="$(ls -1 ${BUILD_CONF}/.. | grep ${unique_target} | head -n 1)"
 				ln -s ${BUILD_CONF}/../${TEMP_TARGET}/target-portage /usr/${unique_target}.skeleton/etc/portage
 				ln -s ${BUILD_CONF}/../${TEMP_TARGET} /usr/${unique_target}.skeleton/packages
 			fi
-			${unique_target}-emerge -1kq sys-libs/musl sys-devel/gcc
+			${unique_target}-emerge -1kq sys-devel/gcc \
+				sys-libs/$(grep ELIBC ${BUILD_CONF}/../${TEMP_TARGET}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//')
 			${unique_target}-emerge -1kq dev-libs/openssl sys-libs/llvm-libunwind
 		# signal to non-chroot script that crossdev target environments are ready for next targets in line for chroot
 		# TODO: replace with flock
@@ -413,7 +414,7 @@ fi
 # build libc before other packages
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
-	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -uDNkq \
+	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1kq \
 	sys-libs/`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`
 CHROOT_RESUME_LINENO="0"
 # build kernel and dependencies before other packages
