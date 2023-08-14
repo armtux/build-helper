@@ -541,6 +541,7 @@ then
 		PATCH_SQUASHFS="yes"
 	fi
 	mkdir -p ../squashfs/etc
+	touch ../squashfs/etc/{group,passwd,shadow}
 fi
 
 # uncomment crossdev target INSTALL_MASK (needed for embedded gentoo)

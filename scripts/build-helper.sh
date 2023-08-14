@@ -497,6 +497,10 @@ then
 	#mv "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" "${BUILD_DEST}/dev.sqfs"
 	# NOTE: new way of creating squashfs image due to lack of squashfs-tools in gentoo boot images
 	mount --rbind . "${MNT_PATH}/m/mnt"
+	if [ "${TMP_TYPE}" = "none" ]
+	then
+		mount -t tmpfs tmpfs "${MNT_PATH}/m/var/tmp/portage"
+	fi
 	chroot "${MNT_PATH}/m" /bin/bash -c "cd /mnt && mksquashfs . /var/tmp/portage/dev.sqfs -comp xz -b 1048576 -Xdict-size 1048576"
 	mv "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" "${BUILD_HELPER_TREE}/history/${BUILD_DATE}.sqfs"
 else
