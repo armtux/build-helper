@@ -25,6 +25,7 @@ do
 done
 
 if [ "${DOCACHE}" = "yes" ] || [ -f /base ]
+then
 	if [ -f "/mnt/sd/config" ]
 	then
 		cp /mnt/sd/config /mnt/config
@@ -41,7 +42,7 @@ if [ "${DOCACHE}" = "yes" ] || [ -f /base ]
 	then
 		mount -t squashfs /extra /mnt/e
 	else
-		cp /mnt/sd/extra /mnt/base
+		cp /mnt/sd/extra /mnt/extra
 		mount -t squashfs /mnt/extra /mnt/e
 	fi
 	umount /mnt/sd
@@ -52,6 +53,8 @@ else
 	fi
 	mount -t squashfs /mnt/sd/base /mnt/b
 	mount -t squashfs /mnt/sd/extra /mnt/e
+	mkdir -p /mnt/m/mnt/sd
+	mount --move /mnt/sd /mnt/m/mnt/sd
 fi
 
 mount -t overlay overlay -olowerdir=/mnt/c:/mnt/e:/mnt/b,upperdir=/mnt/u,workdir=/mnt/w /mnt/m

@@ -610,12 +610,11 @@ FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs --sys
 ${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs --config-root=../squashfs -q --depclean
 
 # create missing system files/directories in final build
-if [ ! -e ../squashfs/root ]
+if [ ! -e ../squashfs/dev ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	mkdir ../squashfs/{dev,home,media,mnt,opt,proc,root,sys}
-	chmod 700 ../squashfs/root
-	cp -a /dev/null /dev/console /dev/tty /dev/loop0 /dev/random /dev/urandom ../squashfs/dev/
+	mkdir ../squashfs/{dev,home,media,mnt,opt,proc,sys}
+	cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/loop0 /dev/loop1 /dev/loop2 /dev/random /dev/urandom ../squashfs/dev/
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
