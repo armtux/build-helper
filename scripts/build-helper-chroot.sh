@@ -291,8 +291,8 @@ then
 				ln -s ${BUILD_CONF}/../${TEMP_TARGET}/target-portage /usr/${unique_target}.skeleton/etc/portage
 				ln -s ${BUILD_CONF}/../${TEMP_TARGET} /usr/${unique_target}.skeleton/packages
 			fi
-			${unique_target}-emerge -uDNkq sys-libs/musl sys-devel/gcc
-			${unique_target}-emerge -uDNkq sys-libs/zlib dev-libs/openssl sys-libs/llvm-libunwind
+			${unique_target}-emerge -1kq sys-libs/musl sys-devel/gcc
+			${unique_target}-emerge -1kq sys-libs/zlib dev-libs/openssl sys-libs/llvm-libunwind
 		# signal to non-chroot script that crossdev target environments are ready for next targets in line for chroot
 		# TODO: replace with flock
 		else
@@ -312,6 +312,8 @@ then
 		# TODO: replace with flock
 		for unique_target in `echo ${1} | sed -e 's/:/\n/g' | sort -u`
 		do
+			# remove rust dependencies to rebuild later with correct custom target cflags
+			${unique_target}-emerge -q --depclean
 			touch /tmp/cross_ready.${unique_target}
 		done
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"

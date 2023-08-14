@@ -1,0 +1,5 @@
+[musl-local-rpi3b]
+location = /var/db/repos/portage-musl-rpi3b
+priority = 10
+masters = gentoo
+auto-sync = no

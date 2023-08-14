@@ -467,6 +467,22 @@ do
 	export PRIMARY_BUILD="no"
 done
 
+# wait until all other target build chroot syncs complete before continuing primary build
+BUILD_COUNT="0"
+for build in `echo ${1} | sed -e 's/:/ /g'`
+do
+	BUILD_COUNT="`expr \"${BUILD_COUNT}\" + \"1\"`"
+	BUILD_COUNT_NAME="`echo ${2} | cut -d ':' -f ${BUILD_COUNT}`"
+	if [ "${BUILD_COUNT}" -ne "1" ]
+	then
+		until [ -e ${MNT_PATH}/${BUILD_COUNT_NAME}-${BUILD_DATE}/m/tmp/cross_sync_ready.${build}.${BUILD_COUNT_NAME} ]
+		do
+			sleep 5
+		done
+		touch ${MNT_PATH}/m/tmp/cross_sync_ready.${build}.${BUILD_COUNT_NAME}
+	fi
+done
+
 # wait until all target build chroot commands complete before continuing
 BUILD_COUNT="0"
 for build in `echo ${1} | sed -e 's/:/ /g'`

@@ -1,0 +1,11 @@
+diff -urN old/src/po/Make_all.mak new/src/po/Make_all.mak
+--- old/src/po/Make_all.mak	2023-08-07 15:00:41.000000000 +0000
++++ new/src/po/Make_all.mak	2023-08-09 23:33:09.880000000 +0000
+@@ -125,7 +125,6 @@
+ MOCONVERTED = \
+ 		cs.cp1250.mo \
+ 		ja.euc-jp.mo \
+-		ja.sjis.mo \
+ 		ko.mo \
+ 		pl.UTF-8.mo \
+ 		pl.cp1250.mo \

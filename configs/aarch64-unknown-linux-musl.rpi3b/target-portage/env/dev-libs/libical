@@ -1,0 +1,1 @@
+MYCMAKEARGS="-DIMPORT_ICAL_GLIB_SRC_GENERATOR=/usr/lib/cmake/LibIcal/IcalGlibSrcGenerator.cmake"
