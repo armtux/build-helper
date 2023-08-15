@@ -206,8 +206,8 @@ then
 		emerge -uDNkq --with-bdeps=y @world
 		# choose latest rust version
 		eselect rust update
-		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	# re-source to apply eselect changes to current shell
 	source /etc/profile
 
