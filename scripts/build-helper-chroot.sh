@@ -50,7 +50,7 @@ resume_mode() {
 		[ $4 -eq 0 ] && [ "${CHROOT_ERROR}" = "no" ] && exit
 		CHROOT_ERROR="yes"
 		set +x
-		echo "chroot script exited due to error. rescue shell launched inside chroot to manually fix error."
+		echo "chroot script exited due to error. rescue shell launched inside chroot to manually fix error. once fixed, \`exit 0\` from rescue shell"
 		/bin/bash
 		echo 'rescue shell exited. enter a choice of "resume" to continue the script nearest'
 		echo 'possible to the previous error, "retry" to restart the chroot script from the beginning,'
@@ -93,7 +93,7 @@ resume_mode() {
 				${BUILD_HELPER_CHROOT_SOURCE} $1
 			;;
 			*)
-				resume_mode
+				resume_mode $1 $2 $3 1
 			;;
 		esac
 	fi
@@ -779,9 +779,9 @@ else
 	#set -e
 	mount -t overlay overlay -olowerdir=b:e,workdir=w,upperdir=u m
 	#set +e
-	if [ -e ../squashfs.extra/var/db/pkg ]
+	if [ -e ../../squashfs.extra/var/db/pkg ]
 	then
-		rm -rf ../squashfs.extra/var/db/pkg
+		rm -rf ../../squashfs.extra/var/db/pkg
 	fi
 	#set -e
 	cp -r m ../../squashfs.extra/var/db/pkg
