@@ -104,7 +104,7 @@ export BUILD_PKGS="${BUILD_HELPER_TREE}/packages/${CROSSDEV_TARGET}.${BUILD_NAME
 # first target cpu architecture
 export BUILD_ARCH="`cat ${BUILD_CONF}/build-arch`"
 # build timestamp
-export BUILD_DATE="`date -Iseconds`"
+export BUILD_DATE="`date -u +%Y%m%dT%H%M%SZ`"
 # path to first target final build
 export BUILD_DEST="${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}.${BUILD_DATE}"
 # path to finished work's squashfs backup
