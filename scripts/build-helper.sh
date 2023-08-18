@@ -434,9 +434,10 @@ do
 	CHROOT_FULL_CMD="${CHROOT_FULL_CMD}chroot . /bin/bash -x -e ${BUILD_HELPER_TREE}/scripts/build-helper-chroot.sh ${1}"
 	if [ "${TMUX_MODE}" = "off" ]
 	then
-		CHROOT_FULL_CMD="${CHROOT_FULL_CMD} | tee ${CHROOT_LOG} &"
+		${CHROOT_FULL_CMD} 2>&1 | tee ${CHROOT_LOG} &
+	else
+		${CHROOT_FULL_CMD}
 	fi
-	${CHROOT_FULL_CMD}
 
 	if [ "${TMUX_MODE}" = "on" ]
 	then

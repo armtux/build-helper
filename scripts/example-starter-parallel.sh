@@ -2,13 +2,17 @@
 
 set -e
 
-STARTER_TIME="$(date -Iseconds)"
+STARTER_TIME="$(date -u +%Y%m%dT%H%M%SZ)"
 STARTER_PATH=$(readlink -f "$0")
 cd $(dirname "${STARTER_PATH}")
 [ ! -e ../logs ] && mkdir -p ../logs
 
 export MAKEOPTS="${MAKEOPTS} -j$(nproc)"
+export MNT_TYPE="bind"
+export HIST_TYPE="squashfs"
+export TMP_TYPE="tmpfs"
 
-MNT_TYPE="bind" HIST_TYPE="squashfs" TMP_TYPE="tmpfs" \
-./build-helper.sh aarch64-unknown-linux-musl:aarch64-unknown-linux-musl rpi4b:rpi3b 2>&1 \
-$([ "${TERM_PROGRAM}" != "tmux" ] && echo -n "| tee ../logs/rpi4b-${STARTER_TIME}.log")
+HELPER_CMD="./build-helper.sh aarch64-unknown-linux-musl:aarch64-unknown-linux-musl rpi4b:rpi3b"
+
+[ "${TERM_PROGRAM}" = "tmux" ] && ${HELPER_CMD} 2>&1 || \
+(${HELPER_CMD} 2>&1 | tee ../logs/rpi4b-${STARTER_TIME}.log)
