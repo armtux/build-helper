@@ -60,7 +60,7 @@ export FIRST_BUILD="no"
 # check if user disabled tmux support
 if [ "${TERM_PROGRAM}" = "tmux" ]
 then
-	export TMUX_MODE="${TMUX_MODE-on}"
+	export TMUX_MODE="${TMUX_MODE:-on}"
 else
 	export TMUX_MODE="off"
 fi
