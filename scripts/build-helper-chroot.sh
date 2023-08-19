@@ -809,11 +809,17 @@ fi
 mkdir -p ../squashfs.extra/etc/portage
 cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/* ../squashfs.extra/etc/portage
 
+# bind mount base /etc to extra to avoid configuration clobbering
+mount -o bind ../squashfs/etc ../squashfs.extra/etc
+
 # install binpkg files in final build extra packages directory
 CHROOT_RESUME_LINENO="$LINENO"
 FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs.extra --config-root=../squashfs.extra \
 	--sysroot=../squashfs.extra -uDNKq --with-bdeps=y `cat ${BUILD_CONF}/worlds/extra`
 CHROOT_RESUME_LINENO="0"
+
+# unmount base /etc from extra before depclean to avoid configuration file loss
+umount ../squashfs.extra/etc
 
 # final build extra packages depclean
 ${CROSSDEV_TARGET}-emerge --root=../squashfs.extra --sysroot=../squashfs.extra --config-root=../squashfs.extra -q --depclean
