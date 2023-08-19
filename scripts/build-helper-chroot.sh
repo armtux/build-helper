@@ -411,11 +411,12 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
-# build libc before other packages
+# build libc and baselayout before other packages
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1kq \
-	sys-libs/`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`
+	sys-libs/`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'` \
+	sys-apps/baselayout
 CHROOT_RESUME_LINENO="0"
 # build kernel and dependencies before other packages
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided.kernel" ]
@@ -545,7 +546,7 @@ then
 		PATCH_SQUASHFS="yes"
 	fi
 	mkdir -p ../squashfs/etc
-	touch ../squashfs/etc/{group,passwd,shadow}
+	#touch ../squashfs/etc/{group,passwd,shadow}
 fi
 
 # uncomment crossdev target INSTALL_MASK (needed for embedded gentoo)
@@ -606,6 +607,10 @@ then
 	cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/locale.gen ../squashfs/etc/locale.gen
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
+
+# install baselayout binpkg files in final build directory first
+FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs --config-root=../squashfs \
+	-1uDNKq --with-bdeps=y sys-apps/baselayout
 
 # install binpkg files in final build directory
 FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs --config-root=../squashfs \
