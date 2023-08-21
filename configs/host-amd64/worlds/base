@@ -1,5 +1,6 @@
 acct-group/ntp
 acct-user/ntp
+app-arch/cpio
 app-arch/zip
 app-editors/vim
 app-portage/smart-live-rebuild
@@ -8,6 +9,10 @@ cross-aarch64-unknown-linux-musl/binutils
 cross-aarch64-unknown-linux-musl/gcc
 cross-aarch64-unknown-linux-musl/linux-headers
 cross-aarch64-unknown-linux-musl/musl
+cross-x86_64-unknown-linux-musl/binutils
+cross-x86_64-unknown-linux-musl/gcc
+cross-x86_64-unknown-linux-musl/linux-headers
+cross-x86_64-unknown-linux-musl/musl
 dev-lang/nasm
 dev-lang/spidermonkey
 dev-lang/yasm

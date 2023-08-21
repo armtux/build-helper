@@ -289,7 +289,7 @@ then
 				ln -s ${BUILD_PKGS} /usr/${unique_target}.skeleton/packages
 			else
 				ln -s ${BUILD_CONF}/../${TEMP_TARGET}/target-portage /usr/${unique_target}.skeleton/etc/portage
-				ln -s ${BUILD_CONF}/../${TEMP_TARGET} /usr/${unique_target}.skeleton/packages
+				ln -s ${BUILD_CONF}/../../packages/${TEMP_TARGET} /usr/${unique_target}.skeleton/packages
 			fi
 			${unique_target}-emerge -1kq sys-devel/gcc \
 				sys-libs/$(grep ELIBC ${BUILD_CONF}/../${TEMP_TARGET}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//')
@@ -411,12 +411,12 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
-# build libc and baselayout before other packages
+# build libc, baselayout, ncurses and binutils-libs before other packages
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1kq \
 	sys-libs/`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'` \
-	sys-apps/baselayout
+	sys-apps/baselayout sys-libs/binutils-libs sys-libs/ncurses
 CHROOT_RESUME_LINENO="0"
 # build kernel and dependencies before other packages
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided.kernel" ]
@@ -1122,6 +1122,6 @@ then
 # x86_64 uefi support
 else
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	cp -r "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/${BUILD_NAME}-${BUILD_DATE}/*" "${BUILD_DEST}/"
+	cp -r "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/${BUILD_NAME}-${BUILD_DATE}"/* "${BUILD_DEST}/"
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"

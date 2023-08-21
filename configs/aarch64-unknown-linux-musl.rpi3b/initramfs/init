@@ -57,6 +57,9 @@ else
 	mount --move /mnt/sd /mnt/m/mnt/sd
 fi
 
+mkdir /mnt/m/mnt/tmp
+mount --rbind /mnt /mnt/m/mnt/tmp
+
 mount -t overlay overlay -olowerdir=/mnt/c:/mnt/e:/mnt/b,upperdir=/mnt/u,workdir=/mnt/w /mnt/m
 
 umount /proc

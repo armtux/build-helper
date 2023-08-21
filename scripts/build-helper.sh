@@ -196,11 +196,17 @@ build_helper_mounts() {
 	#fi
 
 	# bind mount for accessing build environment configuration in chroot
-	if [ ! -e .${HOST_CONF} ]
+	# note: testing mounting all configurations for each build (needed for chroot build environment logic)
+	#if [ ! -e .${HOST_CONF} ]
+	#then
+		#mkdir -p .${HOST_CONF}
+	#fi
+	#mount -o bind ${HOST_CONF} .${HOST_CONF}
+	if [ ! -e .${BUILD_HELPER_TREE}/configs ]
 	then
-		mkdir -p .${HOST_CONF}
+		mkdir -p .${BUILD_HELPER_TREE}/configs
 	fi
-	mount -o bind ${HOST_CONF} .${HOST_CONF}
+	mount -o bind ${BUILD_HELPER_TREE}/configs .${BUILD_HELPER_TREE}/configs
 
 	# bind mounts for target local configuration overlays
 	for i in `ls -1 ${HOST_CONF}/repos`
@@ -372,11 +378,12 @@ do
 	fi
 
 	# bind mount for target configuration files
-	if [ ! -e .${BUILD_CONF} ]
-	then
-		mkdir -p .${BUILD_CONF}
-	fi
-	mount -o bind ${BUILD_CONF} .${BUILD_CONF}
+	# note: testing mounting all configurations for each build (needed for chroot build environment logic)
+	#if [ ! -e .${BUILD_CONF} ]
+	#then
+	#	mkdir -p .${BUILD_CONF}
+	#fi
+	#mount -o bind ${BUILD_CONF} .${BUILD_CONF}
 
 	# bind mounts for target ebuild repositories
 	for i in `ls -1 ${BUILD_CONF}/repos`

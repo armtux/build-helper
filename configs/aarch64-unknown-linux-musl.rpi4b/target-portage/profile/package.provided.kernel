@@ -2,4 +2,3 @@ virtual/libelf-3-r1
 virtual/pkgconfig-2-r1
 sys-devel/make-4.4.1-r1
 sys-kernel/linux-headers-6.1
-sys-libs/ncurses-6.4_p20230401

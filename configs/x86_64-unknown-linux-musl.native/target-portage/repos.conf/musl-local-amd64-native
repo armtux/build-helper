@@ -1,0 +1,5 @@
+[musl-local-amd64-native]
+location = /var/db/repos/portage-musl-amd64-native
+priority = 10
+masters = gentoo
+auto-sync = no

@@ -1,0 +1,73 @@
+#!/bin/busybox sh
+
+mount -t devtmpfs none /dev
+while [ ! -e "/dev/usbdisk" ] || [ ! -e "/dev/vda" ]
+do
+	umount /dev
+	sleep 2
+	mount -t devtmpfs none /dev
+done
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+DOCACHE="no"
+if $(cat /proc/cmdline | tr ' ' '\n' | grep -q docache)
+then
+	DOCACHE="yes"
+fi
+
+mount -t tmpfs tmpfs /mnt
+mkdir /mnt/b /mnt/e /mnt/u /mnt/w /mnt/m /mnt/c /mnt/sd
+
+if [ ! -e "/dev/vda" ]
+	while [ ! -f "/mnt/sd/EFI/boot/bootx64.efi" ]
+	do
+		mount -o ro -t vfat /dev/usbdisk /mnt/sd || sleep 1
+	done
+else
+	mount -t squashfs /dev/vda /mnt/c
+fi
+
+if [ "${DOCACHE}" = "yes" ] || [ -f /base ]
+then
+	if [ -f "/mnt/sd/config" ]
+	then
+		cp /mnt/sd/config /mnt/config
+		mount -t squashfs /mnt/config /mnt/c
+	fi
+	if [ -f /base ]
+	then
+		mount -t squashfs /base /mnt/b
+	else
+		cp /mnt/sd/base /mnt/base
+		mount -t squashfs /mnt/base /mnt/b
+	fi
+	if [ -f /extra ]
+	then
+		mount -t squashfs /extra /mnt/e
+	else
+		cp /mnt/sd/extra /mnt/extra
+		mount -t squashfs /mnt/extra /mnt/e
+	fi
+	umount /mnt/sd
+else
+	if [ -f "/mnt/sd/config" ]
+	then
+		mount -t squashfs /mnt/sd/config /mnt/c
+	fi
+	mount -t squashfs /mnt/sd/base /mnt/b
+	mount -t squashfs /mnt/sd/extra /mnt/e
+	mkdir -p /mnt/m/mnt/sd
+	mount --move /mnt/sd /mnt/m/mnt/sd
+fi
+
+mkdir /mnt/m/mnt/tmp
+mount --rbind /mnt /mnt/m/mnt/tmp
+
+mount -t overlay overlay -olowerdir=/mnt/c:/mnt/e:/mnt/b,upperdir=/mnt/u,workdir=/mnt/w /mnt/m
+
+umount /proc
+umount /sys
+umount /dev
+
+exec switch_root /mnt/m /sbin/init || exec sh

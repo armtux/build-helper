@@ -12,7 +12,7 @@ export MNT_TYPE="bind"
 export HIST_TYPE="squashfs"
 export TMP_TYPE="tmpfs"
 
-HELPER_CMD="./build-helper.sh aarch64-unknown-linux-musl:aarch64-unknown-linux-musl rpi4b:rpi3b"
+HELPER_CMD="./build-helper.sh aarch64-unknown-linux-musl:aarch64-unknown-linux-musl:x86_64-unknown-linux-musl rpi4b:rpi3b:native"
 
 [ "${TERM_PROGRAM}" = "tmux" ] && ${HELPER_CMD} 2>&1 || \
 (${HELPER_CMD} 2>&1 | tee ../logs/rpi4b-${STARTER_TIME}.log)
