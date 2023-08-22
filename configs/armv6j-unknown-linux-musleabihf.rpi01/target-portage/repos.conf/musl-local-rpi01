@@ -1,0 +1,5 @@
+[musl-local-rpi01]
+location = /var/db/repos/portage-musl-rpi01
+priority = 10
+masters = gentoo
+auto-sync = no

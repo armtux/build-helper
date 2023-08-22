@@ -1,0 +1,9 @@
+app-alternatives/bc
+app-arch/cpio
+dev-lang/perl
+dev-libs/libbsd
+sys-boot/raspberrypi-firmware
+sys-devel/bison
+sys-devel/flex
+sys-libs/zlib
+sys-kernel/raspberrypi-sources

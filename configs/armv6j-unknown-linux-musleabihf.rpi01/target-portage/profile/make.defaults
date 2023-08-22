@@ -1,0 +1,3 @@
+ARCH="arm"
+KERNEL="-linux linux"
+ELIBC="musl"

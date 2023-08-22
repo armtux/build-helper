@@ -1050,11 +1050,12 @@ then
 		mkdir -p ../${BUILD_NAME}-${BUILD_DATE}/boot/overlays
 	fi
 	cp arch/${BUILD_ARCH}/boot/dts/overlays/*.dtbo ../${BUILD_NAME}-${BUILD_DATE}/boot/overlays/
-	cp arch/${BUILD_ARCH}/boot/dts/broadcom/*.dtb ../${BUILD_NAME}-${BUILD_DATE}/boot/
 	if [ "${BUILD_ARCH}" = "arm64" ]
 	then
+		cp arch/${BUILD_ARCH}/boot/dts/broadcom/*.dtb ../${BUILD_NAME}-${BUILD_DATE}/boot/
 		cp "arch/${BUILD_ARCH}/boot/Image" "../${BUILD_NAME}-${BUILD_DATE}/boot/kernel8.img"
 	else
+		cp arch/${BUILD_ARCH}/boot/dts/*.dtb ../${BUILD_NAME}-${BUILD_DATE}/boot/
 		cp "arch/${BUILD_ARCH}/boot/zImage" "../${BUILD_NAME}-${BUILD_DATE}/boot/kernel.img"
 	fi
 # copy final build kernel to output directory (x86_64 uefi)

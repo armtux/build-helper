@@ -1,0 +1,4 @@
+cross-armv6j-unknown-linux-musleabihf/binutils -multilib
+cross-armv6j-unknown-linux-musleabihf/linux-headers -selinux -multilib
+cross-armv6j-unknown-linux-musleabihf/musl -selinux -libraries -multilib
+cross-armv6j-unknown-linux-musleabihf/gcc -sanitize -vtv -selinux -boundschecking -d -gcj -gtk -libffi -mudflap -objc -objc++ -objc-gc -sanitize -multilib
