@@ -1,14 +1,51 @@
 #!/bin/busybox sh
 
 mount -t devtmpfs none /dev
-while [ ! -e "/dev/mmcblk0p1" ]
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+SQUASH_DEV='none'
+if $(cat /proc/cmdline | tr ' ' '\n' | grep -q squash_dev)
+then
+	SQUASH_DEV="$(cat /proc/cmdline | tr ' ' '\n' | grep -m 1 squash_dev)"
+fi
+
+SQUASH_DIR='.'
+if $(cat /proc/cmdline | tr ' ' '\n' | grep -q squash_dir)
+then
+	SQUASH_DIR="$(cat /proc/cmdline | tr ' ' '\n' | grep -m 1 squash_dir)"
+fi
+
+SQUASH_TYPE='vfat'
+if $(cat /proc/cmdline | tr ' ' '\n' | grep -q squash_type)
+then
+	SQUASH_TYPE="$(cat /proc/cmdline | tr ' ' '\n' | grep -m 1 squash_type)"
+fi
+
+SQUASH_DEV="${SQUASH_DEV#squash_dev=}"
+SQUASH_DIR="${SQUASH_DIR#squash_dir=}"
+SQUASH_TYPE="${SQUASH_TYPE#squash_type=}"
+
+while ([ "${SQUASH_DEV}" != "none" ] && [ ! -e "/dev/${SQUASH_DEV}" ]) || [ "${SQUASH_DEV}" = "none" ]
 do
 	umount /dev
 	sleep 2
 	mount -t devtmpfs none /dev
+	if [ "${SQUASH_DEV}" = "none" ]
+	then
+		if [ -e /dev/mmcblk0p1 ]
+		then
+			SQUASH_DEV="mmcblk0p1"
+		elif [ -e /dev/sda1 ]
+		then
+			SQUASH_DEV="sda1"
+		elif [ -e /dev/sr0 ]
+		then
+			SQUASH_DEV="sr0"
+		fi
+	fi
 done
-mount -t proc none /proc
-mount -t sysfs none /sys
 
 DOCACHE="no"
 if $(cat /proc/cmdline | tr ' ' '\n' | grep -q docache)
@@ -19,40 +56,43 @@ fi
 mount -t tmpfs tmpfs /mnt
 mkdir /mnt/b /mnt/e /mnt/u /mnt/w /mnt/m /mnt/c /mnt/sd
 
-while [ ! -f "/mnt/sd/kernel8.img" ]
+while [ ! -e "/mnt/sd/${SQUASH_DIR}/kernel8.img" ] && \
+	[ ! -e "/mnt/sd/${SQUASH_DIR}/kernel8.img" ] && \
+	[ ! -e "/mnt/sd/EFI/boot/bootx64.efi" ] && \
+	[ ! -e "/mnt/sd/${SQUASH_DIR}/config" ]
 do
-	mount -o ro -t vfat /dev/mmcblk0p1 /mnt/sd || sleep 1
+	mount -o ro -t ${SQUASH_TYPE} /dev/${SQUASH_DEV} /mnt/sd || sleep 1
 done
 
 if [ "${DOCACHE}" = "yes" ] || [ -f /base ]
 then
-	if [ -f "/mnt/sd/config" ]
+	if [ -f "/mnt/sd/${SQUASH_DIR}/config" ]
 	then
-		cp /mnt/sd/config /mnt/config
+		cp /mnt/sd/${SQUASH_DIR}/config /mnt/config
 		mount -t squashfs /mnt/config /mnt/c
 	fi
 	if [ -f /base ]
 	then
 		mount -t squashfs /base /mnt/b
 	else
-		cp /mnt/sd/base /mnt/base
+		cp /mnt/sd/${SQUASH_DIR}/base /mnt/base
 		mount -t squashfs /mnt/base /mnt/b
 	fi
 	if [ -f /extra ]
 	then
 		mount -t squashfs /extra /mnt/e
 	else
-		cp /mnt/sd/extra /mnt/extra
+		cp /mnt/sd/${SQUASH_DIR}/extra /mnt/extra
 		mount -t squashfs /mnt/extra /mnt/e
 	fi
 	umount /mnt/sd
 else
-	if [ -f "/mnt/sd/config" ]
+	if [ -f "/mnt/sd/${SQUASH_DIR}/config" ]
 	then
-		mount -t squashfs /mnt/sd/config /mnt/c
+		mount -t squashfs /mnt/sd/${SQUASH_DIR}/config /mnt/c
 	fi
-	mount -t squashfs /mnt/sd/base /mnt/b
-	mount -t squashfs /mnt/sd/extra /mnt/e
+	mount -t squashfs /mnt/sd/${SQUASH_DIR}/base /mnt/b
+	mount -t squashfs /mnt/sd/${SQUASH_DIR}/extra /mnt/e
 	mkdir -p /mnt/m/mnt/sd
 	mount --move /mnt/sd /mnt/m/mnt/sd
 fi
