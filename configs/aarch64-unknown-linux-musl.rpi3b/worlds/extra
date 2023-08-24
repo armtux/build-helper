@@ -2,6 +2,7 @@ app-admin/pwgen
 app-admin/syslog-ng
 app-editors/vim
 app-misc/tmux
+app-portage/cpuid2cpuflags
 app-shells/bash-completion
 dev-vcs/git
 net-firewall/iptables

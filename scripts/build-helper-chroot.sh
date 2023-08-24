@@ -142,6 +142,10 @@ then
 		emerge --sync || (rm -rf /var/db/repos/gentoo && emerge --sync)
 	fi
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+	# set CPU_FLAGS_* for native host target
+	emerge -ukq app-portage/cpuid2cpuflags
+	echo "*/* $(cpuid2cpuflags)" > /etc/portage/package.use/00cpu-flags-native
+	export VIDEO_CARDS="${VIDEO_CARDS_NATIVE}"
 	# make sure portage is up-to-date before continuing
 	# TODO: skip portage update if new python needed? (done?)
 	#set +e
@@ -202,8 +206,20 @@ then
 			ln -s `ls -1v /usr/${unique_target}.*/usr | grep "/usr/" | grep -v skeleton | sed -e 's/://' -e 's#/usr$##' | tail -n 1` /usr/${unique_target}
 		done
 		CHROOT_RESUME_LINENO="0"
+		CHROOT_RESUME_LINENO="$LINENO"
+		# check if new rust cross-targets need to be built later, avoid building them for now to avoid crash from missing new crossdev targets
+		for unique_target in `echo ${1} | sed -e 's/:/\n/g' | sort -u`
+		do
+			if [ ! -e /usr/lib/rust/lib/rustlib/`cat /etc/portage/env/dev-lang/rust | grep ":${unique_target}\"" | cut -d ':' -f2` ]
+			then
+				sed -i -e 's/^I_KNOW_WHAT_I_AM_DOING_CROSS/#I_KNOW_WHAT_I_AM_DOING_CROSS/' /etc/portage/make.conf
+			fi
+		done
+		CHROOT_RESUME_LINENO="0"
 		# update world, including crossdev toolchains and rust
 		emerge -uDNkq --with-bdeps=y @world
+		# revert avoiding rust cross-toolchains for rebuilding rust after crossdev targets are built
+		sed -i -e 's/^#I_KNOW_WHAT_I_AM_DOING_CROSS/I_KNOW_WHAT_I_AM_DOING_CROSS/' /etc/portage/make.conf
 		# choose latest rust version
 		eselect rust update
 	fi
@@ -291,6 +307,7 @@ then
 				ln -s ${BUILD_CONF}/../${TEMP_TARGET}/target-portage /usr/${unique_target}.skeleton/etc/portage
 				ln -s ${BUILD_CONF}/../../packages/${TEMP_TARGET} /usr/${unique_target}.skeleton/packages
 			fi
+			unset VIDEO_CARDS
 			${unique_target}-emerge -1kq sys-devel/gcc \
 				sys-libs/$(grep ELIBC ${BUILD_CONF}/../${TEMP_TARGET}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//')
 			${unique_target}-emerge -1kq dev-libs/openssl sys-libs/llvm-libunwind
@@ -366,6 +383,24 @@ then
 	ln -s ${BUILD_CONF}/target-portage /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
+
+# check if crossdev target is a native build, apply CPU_FLAGS_*, VIDEO_CARDS and LLVM_TARGETS for user hardware if applicable
+if [ "$(grep CHOST= /etc/portage/make.conf | sed -e 's/\"//g' -e 's/-.*$//')" = \
+	"$(grep CHOST= /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf | sed -e 's/\"//g' -e 's/-.*$//')" ] \
+	&& echo "${BUILD_NAME}" | grep -q native
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	echo "*/* $(cpuid2cpuflags)" > /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.use/00cpu-flags-native
+	export VIDEO_CARDS="${VIDEO_CARDS_NATIVE}"
+	if echo "${VIDEO_CARDS}" | grep -q amdgpu
+	then
+		export LLVM_TARGETS="AMDGPU"
+	fi
+else
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	unset VIDEO_CARDS
+fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # symlink crossdev target environment for this build to generic crossdev toolchain location
 ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME} /usr/${CROSSDEV_TARGET}
@@ -1096,10 +1131,14 @@ then
 fi
 
 # fully clean kernel source directory (required for some kernel security features)
-# TODO: add option to skip cleanup
-cp .config ../config
-ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make mrproper
-mv ../config .config
+# TODO: add option to skip cleanup (done?)
+if [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/skip.mrproper ]
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	cp .config ../config
+	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make mrproper
+	mv ../config .config
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+fi
 
 # TODO: Implement config squashfs
 

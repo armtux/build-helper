@@ -3,6 +3,7 @@ acct-user/ntp
 app-arch/cpio
 app-arch/zip
 app-editors/vim
+app-portage/cpuid2cpuflags
 app-portage/smart-live-rebuild
 app-text/scdoc
 cross-aarch64-unknown-linux-musl/binutils
