@@ -118,7 +118,7 @@ export DISTFILES="${DISTFILES:-${BUILD_HELPER_TREE}/distfiles}"
 # path to build environment mount point
 export MNT_PATH="/mnt/${BUILD_NAME}-${BUILD_DATE}"
 # whether to ask before unmounting chroot mounts at the end of the script
-export UMOUNT_ASK="${UMOUNT_ASK-yes}"
+export UMOUNT_ASK="${UMOUNT_ASK:-yes}"
 
 # minimally sanitize input and display usage if invalid
 DISPLAY_USAGE="no"
@@ -430,7 +430,7 @@ do
 	if [ "${TMUX_MODE}" = "on" ]
 	then
 		CHROOT_FULL_CMD="tmux new-window -n \"${CROSSDEV_TARGET}.${BUILD_NAME}\" "
-		for chroot_var in $(env | sed -E 's/^.* .*$//' | sed -E 's/^(TMUX=|TMUX_PANE|LS|LESS).*$//')
+		for chroot_var in $(env | sed -e "s/ /##space##/g" | sed -E 's/^(TMUX=|TMUX_PANE|LS|LESS).*$//')
 		do
 			CHROOT_FULL_CMD="${CHROOT_FULL_CMD}-e ${chroot_var} "
 		done

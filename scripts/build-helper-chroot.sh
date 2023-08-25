@@ -107,6 +107,11 @@ CHROOT_RESUME_TOP_END="$LINENO"
 
 # step out of chroot's / into /root
 cd
+# re-add spaces from transferred environment variables
+for env_var in $(env | grep '##space##')
+do
+	export "${env_var//##space##/' '}"
+done
 # source chroot profile, as per gentoo handbook
 source /etc/profile
 # don't rebuild rust by default unless triggered by conditions below
@@ -1133,6 +1138,7 @@ fi
 # fully clean kernel source directory (required for some kernel security features)
 # TODO: add option to skip cleanup (done?)
 if [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/skip.mrproper ]
+then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp .config ../config
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make mrproper
