@@ -469,6 +469,7 @@ then
 	then
 		cp ${BUILD_CONF}/linux.config /etc/kernel/config.d/
 	elif [ -e /etc/kernel/config.d/linux.config ]
+	then
 		rm /etc/kernel/config.d/linux.config
 	fi
 fi
@@ -504,6 +505,7 @@ ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/`ls -1v /usr/${CROSSDEV_TARG
 	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
 CHROOT_RESUME_LINENO="0"
 
+cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
 if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
@@ -516,7 +518,6 @@ then
 
 	# update target kernel .config for current kernel version and prepare sources for emerge checks
 	# TODO: support sys-kernel/gentoo-kernel[-bin] and dracut
-	cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
 	yes "" | ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make oldconfig
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
@@ -573,7 +574,12 @@ ROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} SYSROOT=/usr/${CROSSDEV_TARGET}.${BUI
 CHROOT_RESUME_LINENO="0"
 
 # prepare sources for emerge checks (again?)
-ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
+if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+fi
 
 # crossdev target depclean
 CHROOT_RESUME_LINENO="$LINENO"
@@ -1034,6 +1040,7 @@ cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/loop0 /dev/loop1 /dev/loop2
 # TODO: remove old kernel modules (done?)
 cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
 if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- INSTALL_MOD_PATH=../squashfs make modules_install
@@ -1081,6 +1088,10 @@ fi
 # TODO: additionally support tarballs
 cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/squashfs
 #mksquashfs . ../initramfs/base -comp xz -b 1048576 -Xbcj ${SQUASH_BCJ} -Xdict-size 1048576
+if [ -e ../initramfs/base ]
+then
+	rm ../initramfs/base
+fi
 mksquashfs . ../initramfs/base -comp xz -b 1048576 -Xdict-size 1048576
 
 # separate userland base packages from kernel binary if triggered by target configuration
@@ -1094,6 +1105,10 @@ fi
 # TODO: additionally support tarballs
 cd ../squashfs.extra
 #mksquashfs . ../initramfs/extra -comp xz -b 1048576 -Xbcj ${SQUASH_BCJ} -Xdict-size 1048576
+if [ -e ../initramfs/extra ]
+then
+	rm ../initramfs/extra
+fi
 mksquashfs . ../initramfs/extra -comp xz -b 1048576 -Xdict-size 1048576
 
 # separate userland extra packages from kernel binary if triggered by target configuration
@@ -1102,6 +1117,7 @@ then
 	mv ../initramfs/extra ../extra-${BUILD_DATE}
 fi
 
+cd ../linux
 # rebuild kernel with updated initramfs including userland if triggered by target configuration
 if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ]
 then
@@ -1115,7 +1131,6 @@ elif [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.
 	[ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	cd ../linux
 	rm usr/initramfs_data.cpio
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
@@ -1181,7 +1196,7 @@ fi
 # fully clean kernel source directory (required for some kernel security features)
 # TODO: add option to skip cleanup (done?)
 if [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/skip.mrproper ] || \
-	[ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ]
+	[ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp .config ../config

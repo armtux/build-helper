@@ -16,7 +16,7 @@ sys-apps/hdparm
 sys-apps/pciutils
 sys-apps/smartmontools
 sys-apps/usbutils
+sys-fs/cryptsetup
 sys-fs/squashfs-tools
-sys-libs/llvm-libunwind
 sys-process/htop
 www-client/pybugz

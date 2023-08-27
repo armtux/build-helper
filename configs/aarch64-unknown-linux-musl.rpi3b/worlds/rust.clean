@@ -10,7 +10,6 @@ sys-devel/gcc
 sys-devel/gcc-config
 sys-kernel/installkernel-gentoo
 sys-libs/libxcrypt
-sys-libs/llvm-libunwind
 sys-libs/zlib
 virtual/libiconv
 virtual/libintl

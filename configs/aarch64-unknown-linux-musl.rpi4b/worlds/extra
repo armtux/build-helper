@@ -12,6 +12,5 @@ net-wireless/iw
 net-wireless/wireless-tools
 net-wireless/wpa_supplicant
 sys-fs/squashfs-tools
-sys-libs/llvm-libunwind
 sys-process/htop
 www-client/pybugz
