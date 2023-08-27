@@ -1,5 +1,7 @@
 acct-group/ntp
+acct-group/nullmail
 acct-user/ntp
+acct-user/nullmail
 app-arch/cpio
 app-arch/zip
 app-editors/vim
