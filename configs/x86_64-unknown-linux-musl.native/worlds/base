@@ -5,6 +5,7 @@ acct-group/man
 acct-group/messagebus
 acct-group/nobody
 acct-group/ntp
+acct-group/nullmail
 acct-group/root
 acct-group/tape
 acct-group/users
@@ -15,4 +16,5 @@ acct-user/messagebus
 acct-user/man
 acct-user/nobody
 acct-user/ntp
+acct-user/nullmail
 acct-user/root

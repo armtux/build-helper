@@ -1,6 +1,7 @@
 app-admin/pwgen
 app-admin/syslog-ng
 app-editors/vim
+app-emulation/qemu
 app-misc/tmux
 app-portage/cpuid2cpuflags
 app-shells/bash-completion
@@ -11,6 +12,10 @@ net-wireless/bluez
 net-wireless/iw
 net-wireless/wireless-tools
 net-wireless/wpa_supplicant
+sys-apps/hdparm
+sys-apps/pciutils
+sys-apps/smartmontools
+sys-apps/usbutils
 sys-fs/squashfs-tools
 sys-libs/llvm-libunwind
 sys-process/htop
