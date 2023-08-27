@@ -17,7 +17,7 @@ then
 	SQUASH_DIR="$(cat /proc/cmdline | tr ' ' '\n' | grep -m 1 squash_dir)"
 fi
 
-SQUASH_TYPE='vfat'
+SQUASH_TYPE=''
 if $(cat /proc/cmdline | tr ' ' '\n' | grep -q squash_type)
 then
 	SQUASH_TYPE="$(cat /proc/cmdline | tr ' ' '\n' | grep -m 1 squash_type)"
@@ -27,6 +27,11 @@ SQUASH_DEV="${SQUASH_DEV#squash_dev=}"
 SQUASH_DIR="${SQUASH_DIR#squash_dir=}"
 SQUASH_TYPE="${SQUASH_TYPE#squash_type=}"
 
+if [ "${SQUASH_TYPE}" != "" ]
+then
+	SQUASH_TYPE="-t ${SQUASH_TYPE} "
+fi
+
 while ([ "${SQUASH_DEV}" != "none" ] && [ ! -e "/dev/${SQUASH_DEV}" ]) || [ "${SQUASH_DEV}" = "none" ]
 do
 	umount /dev
@@ -34,16 +39,18 @@ do
 	mount -t devtmpfs none /dev
 	if [ "${SQUASH_DEV}" = "none" ]
 	then
-		if [ -e /dev/mmcblk0p1 ]
-		then
-			SQUASH_DEV="mmcblk0p1"
-		elif [ -e /dev/sda1 ]
-		then
-			SQUASH_DEV="sda1"
-		elif [ -e /dev/sr0 ]
-		then
-			SQUASH_DEV="sr0"
-		fi
+		for dev in /dev/cdroms/* /dev/ide/cd/* /dev/sr* /dev/sd* /dev/hd* /dev/vd* /dev/ubd* /dev/ubd/* /dev/iseries/vcd* /dev/mmcblk* /dev/mmcblk*/*
+		do
+			if [ -e "${dev}" ]
+			then
+				mount -o ro ${SQUASH_TYPE}${dev} /mnt
+				if [ -e "/mnt/${SQUASH_DIR}/config" ]
+				then
+					SQUASH_DEV="${dev#/dev/}"
+				fi
+				umount /mnt
+			fi
+		done
 	fi
 done
 
@@ -56,13 +63,7 @@ fi
 mount -t tmpfs tmpfs /mnt
 mkdir /mnt/b /mnt/e /mnt/u /mnt/w /mnt/m /mnt/c /mnt/sd
 
-while [ ! -e "/mnt/sd/${SQUASH_DIR}/kernel8.img" ] && \
-	[ ! -e "/mnt/sd/${SQUASH_DIR}/kernel8.img" ] && \
-	[ ! -e "/mnt/sd/EFI/boot/bootx64.efi" ] && \
-	[ ! -e "/mnt/sd/${SQUASH_DIR}/config" ]
-do
-	mount -o ro -t ${SQUASH_TYPE} /dev/${SQUASH_DEV} /mnt/sd || sleep 1
-done
+mount -o ro ${SQUASH_TYPE}/dev/${SQUASH_DEV} /mnt/sd || sleep 1
 
 if [ "${DOCACHE}" = "yes" ] || [ -f /base ]
 then
@@ -93,14 +94,18 @@ else
 	fi
 	mount -t squashfs /mnt/sd/${SQUASH_DIR}/base /mnt/b
 	mount -t squashfs /mnt/sd/${SQUASH_DIR}/extra /mnt/e
+fi
+
+mount -t overlay overlay -olowerdir=/mnt/c:/mnt/e:/mnt/b,upperdir=/mnt/u,workdir=/mnt/w /mnt/m
+
+if [ "${DOCACHE}" = "no" ] && [ ! -f /base ]
+then
 	mkdir -p /mnt/m/mnt/sd
 	mount --move /mnt/sd /mnt/m/mnt/sd
 fi
 
 mkdir /mnt/m/mnt/tmp
 mount --rbind /mnt /mnt/m/mnt/tmp
-
-mount -t overlay overlay -olowerdir=/mnt/c:/mnt/e:/mnt/b,upperdir=/mnt/u,workdir=/mnt/w /mnt/m
 
 umount /proc
 umount /sys

@@ -458,6 +458,20 @@ ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	sys-libs/`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'` \
 	sys-apps/baselayout sys-libs/binutils-libs sys-libs/ncurses
 CHROOT_RESUME_LINENO="0"
+# include .config customizations if gentoo-kernel ebuild is being used
+if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ]
+then
+	if [ ! -e /etc/kernel/config.d ]
+	then
+		mkdir -p /etc/kernel/config.d
+	fi
+	if [ -e ${BUILD_CONF}/linux.config ]
+	then
+		cp ${BUILD_CONF}/linux.config /etc/kernel/config.d/
+	elif [ -e /etc/kernel/config.d/linux.config ]
+		rm /etc/kernel/config.d/linux.config
+	fi
+fi
 # build kernel and dependencies before other packages
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided.kernel" ]
 then
@@ -490,18 +504,23 @@ ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/`ls -1v /usr/${CROSSDEV_TARG
 	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
 CHROOT_RESUME_LINENO="0"
 
-# use target kernel .config
-cp ${BUILD_CONF}/linux.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux/.config
-CHROOT_RESUME_LINENO="$LINENO"
-sed -i -e "s#CONFIG_INITRAMFS_SOURCE=\"\"#CONFIG_INITRAMFS_SOURCE=\"/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs\"#" \
-	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux/.config
-CHROOT_RESUME_LINENO="0"
+if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	# use target kernel .config
+	cp ${BUILD_CONF}/linux.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux/.config
+	CHROOT_RESUME_LINENO="$LINENO"
+	sed -i -e "s#CONFIG_INITRAMFS_SOURCE=\"\"#CONFIG_INITRAMFS_SOURCE=\"/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs\"#" \
+		/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux/.config
+	CHROOT_RESUME_LINENO="0"
 
-# update target kernel .config for current kernel version and prepare sources for emerge checks
-# TODO: support sys-kernel/gentoo-kernel[-bin] and dracut
-cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
-yes "" | ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make oldconfig
-ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
+	# update target kernel .config for current kernel version and prepare sources for emerge checks
+	# TODO: support sys-kernel/gentoo-kernel[-bin] and dracut
+	cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
+	yes "" | ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make oldconfig
+	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+fi
 
 # make sure ld-musl-${ARCH}.path exists
 cat /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/ld.so.conf.d/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/ld.so.conf | grep -v include \
@@ -962,8 +981,11 @@ then
 	rm -rf ../initramfs
 fi
 cp -r ${BUILD_CONF}/initramfs ../initramfs
-chown -R 0:0 ../initramfs
-chmod 700 ../initramfs/init
+if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+then
+	chown -R 0:0 ../initramfs
+	chmod 700 ../initramfs/init
+fi
 
 # backup system busybox binpkg to build minimal initramfs busybox
 mkdir /tmp/busybox /tmp/busybox-mini
@@ -1011,8 +1033,20 @@ cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/loop0 /dev/loop1 /dev/loop2
 # build crossdev target kernel and install modules in final build directory
 # TODO: remove old kernel modules (done?)
 cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
-ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
-ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- INSTALL_MOD_PATH=../squashfs make modules_install
+if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
+	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- INSTALL_MOD_PATH=../squashfs make modules_install
+else
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	if [ ! -e ../squashfs/lib/modules ]
+	then
+		mkdir -p ../squashfs/lib/modules
+	fi
+	cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/lib/modules/$(ls -1v /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/lib/modules | tail -n 1) \
+		../squashfs/lib/modules/
+fi
+CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 # work in final build directory
 cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/squashfs
@@ -1069,10 +1103,19 @@ then
 fi
 
 # rebuild kernel with updated initramfs including userland if triggered by target configuration
-cd ../linux
-if [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ] && [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
+if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	CHROOT_RESUME_LINENO="$LINENO"
+	${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
+		--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -q gentoo-kernel
+	CHROOT_RESUME_LINENO="0"
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+elif [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ] && \
+	[ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	cd ../linux
 	rm usr/initramfs_data.cpio
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
@@ -1101,7 +1144,7 @@ then
 # copy final build kernel to output directory (x86_64 uefi)
 else
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	cp "arch/${BUILD_ARCH}/boot/bzImage" "../${BUILD_NAME}-${BUILD_DATE}/EFI/boot/bootx64.efi"
+	cp "arch/${BUILD_ARCH//_64/}/boot/bzImage" "../${BUILD_NAME}-${BUILD_DATE}/EFI/boot/bootx64.efi"
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
@@ -1137,7 +1180,8 @@ fi
 
 # fully clean kernel source directory (required for some kernel security features)
 # TODO: add option to skip cleanup (done?)
-if [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/skip.mrproper ]
+if [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/skip.mrproper ] || \
+	[ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp .config ../config

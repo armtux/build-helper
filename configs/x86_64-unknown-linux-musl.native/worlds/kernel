@@ -5,4 +5,4 @@ dev-libs/libbsd
 sys-devel/bison
 sys-devel/flex
 sys-libs/zlib
-sys-kernel/gentoo-sources
+sys-kernel/gentoo-kernel
