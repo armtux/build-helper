@@ -95,10 +95,10 @@ index 09db5b11dbfd3..e31f987c7dc9a 100644
  use libc::fstatat64;
  #[cfg(any(
      target_os = "android",
-@@ -58,9 +62,10 @@ use libc::fstatat64;
-     target_os = "redox",
+@@ -66,9 +66,10 @@
      target_os = "illumos",
      target_os = "nto",
+     target_os = "vita",
 +    target_env = "musl",
  ))]
  use libc::readdir as readdir64;

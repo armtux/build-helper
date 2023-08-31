@@ -315,7 +315,7 @@ then
 			unset VIDEO_CARDS
 			${unique_target}-emerge -1kq sys-devel/gcc \
 				sys-libs/$(grep ELIBC ${BUILD_CONF}/../${TEMP_TARGET}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//')
-			${unique_target}-emerge -1kq dev-libs/openssl sys-libs/llvm-libunwind
+			${unique_target}-emerge -1kq dev-libs/openssl
 		# signal to non-chroot script that crossdev target environments are ready for next targets in line for chroot
 		# TODO: replace with flock
 		else
