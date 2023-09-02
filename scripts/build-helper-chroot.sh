@@ -1195,13 +1195,17 @@ fi
 
 # fully clean kernel source directory (required for some kernel security features)
 # TODO: add option to skip cleanup (done?)
-if [ ! -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/skip.mrproper ] || \
-	[ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	cp .config ../config
-	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make mrproper
-	mv ../config .config
+	if [ ! -e ${BUILD_CONF}/skip.mrproper ]
+	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		cp .config ../config
+		ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make mrproper
+		mv ../config .config
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+	fi
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 

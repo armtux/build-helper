@@ -9,8 +9,13 @@ app-pda/usbmuxd
 app-portage/cpuid2cpuflags
 app-shells/bash-completion
 dev-vcs/git
+gui-apps/foot
+gui-wm/sway
+media-gfx/imv
+media-video/mpv
 net-firewall/iptables
 net-misc/chrony
+net-misc/yt-dlp
 net-wireless/bluez
 net-wireless/iw
 net-wireless/wireless-tools
