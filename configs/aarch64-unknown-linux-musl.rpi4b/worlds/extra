@@ -12,6 +12,7 @@ dev-vcs/git
 gui-apps/foot
 gui-wm/sway
 media-gfx/imv
+media-sound/alsa-utils
 media-video/mpv
 net-firewall/iptables
 net-misc/chrony
@@ -20,6 +21,9 @@ net-wireless/bluez
 net-wireless/iw
 net-wireless/wireless-tools
 net-wireless/wpa_supplicant
+sys-auth/seatd
 sys-fs/squashfs-tools
+sys-libs/basu
 sys-process/htop
+www-client/firefox
 www-client/pybugz

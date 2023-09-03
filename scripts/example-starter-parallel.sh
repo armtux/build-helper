@@ -9,7 +9,7 @@ cd $(dirname "${STARTER_PATH}")
 
 export MAKEOPTS="${MAKEOPTS} -j$(nproc)"
 # change VIDEO_CARDS_NATIVE for your native target's hardware
-export VIDEO_CARDS_NATIVE="amdgpu radeonsi virgl"
+export VIDEO_CARDS_NATIVE="amdgpu radeonsi radeon virgl"
 export MNT_TYPE="bind"
 export HIST_TYPE="squashfs"
 export TMP_TYPE="tmpfs"

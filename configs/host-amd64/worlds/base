@@ -12,6 +12,7 @@ app-eselect/eselect-mpg123
 app-i18n/unicode-data
 app-portage/cpuid2cpuflags
 app-portage/smart-live-rebuild
+app-text/ansifilter
 app-text/asciidoc
 app-text/docbook-xml-dtd
 app-text/scdoc
@@ -30,6 +31,7 @@ cross-x86_64-unknown-linux-musl/musl
 dev-lang/nasm
 dev-lang/spidermonkey
 dev-lang/yasm
+dev-libs/dbus-glib
 dev-libs/gobject-introspection-common
 dev-libs/libical
 dev-libs/libnl
@@ -50,6 +52,10 @@ dev-util/netsurf-buildsystem
 dev-util/scons
 dev-util/wayland-scanner
 dev-vcs/git
+gnome-base/librsvg
+media-libs/fontconfig
+media-libs/freetype
+media-libs/harfbuzz
 media-libs/libpng
 net-dns/c-ares
 net-libs/nodejs
@@ -67,4 +73,8 @@ sys-libs/libomp
 virtual/fortran
 virtual/libelf
 x11-base/xcb-proto
+x11-libs/cairo
 x11-libs/gdk-pixbuf
+x11-libs/gtk+:3
+x11-libs/pango
+x11-themes/adwaita-icon-theme
