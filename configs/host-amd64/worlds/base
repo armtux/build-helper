@@ -24,6 +24,10 @@ cross-armv6j-unknown-linux-musleabihf/binutils
 cross-armv6j-unknown-linux-musleabihf/gcc
 cross-armv6j-unknown-linux-musleabihf/linux-headers
 cross-armv6j-unknown-linux-musleabihf/musl
+cross-x86_64-unknown-linux-gnu/binutils
+cross-x86_64-unknown-linux-gnu/gcc
+cross-x86_64-unknown-linux-gnu/glibc
+cross-x86_64-unknown-linux-gnu/linux-headers
 cross-x86_64-unknown-linux-musl/binutils
 cross-x86_64-unknown-linux-musl/gcc
 cross-x86_64-unknown-linux-musl/linux-headers

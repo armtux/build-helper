@@ -260,11 +260,16 @@ then
 		if [ ! -e /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-clang ]
 		then
 			# TODO: replace symlink creation with solution using upstream tools
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-clang
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-clang++
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-clang-cl
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-clang-cpp
-			ln -s x86_64-gentoo-linux-musl-llvm-config /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-llvm-config
+			LLVM_HOST_VER="`ls -1v /usr/lib/llvm | tail -n 1`"
+			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang
+			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++
+			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl
+			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp
+			ln -s x86_64-gentoo-linux-musl-llvm-config /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-llvm-config
+			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-${LLVM_HOST_VER}
+			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++-${LLVM_HOST_VER}
+			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl-${LLVM_HOST_VER}
+			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp-${LLVM_HOST_VER}
 			#ln -s x86_64-gentoo-linux-musl-clang /usr/bin/${unique_target}-clang
 			#ln -s x86_64-gentoo-linux-musl-llvm-config /usr/bin/${unique_target}-llvm-config
 		fi
@@ -310,12 +315,17 @@ then
 				ln -s ${BUILD_PKGS} /usr/${unique_target}.skeleton/packages
 			else
 				ln -s ${BUILD_CONF}/../${TEMP_TARGET}/target-portage /usr/${unique_target}.skeleton/etc/portage
+				if [ ! -e ${BUILD_CONF}/../../packages/${TEMP_TARGET} ]
+				then
+					mkdir -p ${BUILD_CONF}/../../packages/${TEMP_TARGET}
+				fi
 				ln -s ${BUILD_CONF}/../../packages/${TEMP_TARGET} /usr/${unique_target}.skeleton/packages
 			fi
 			unset VIDEO_CARDS
 			${unique_target}-emerge -1kq sys-devel/gcc \
 				sys-libs/$(grep ELIBC ${BUILD_CONF}/../${TEMP_TARGET}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//')
 			${unique_target}-emerge -1kq dev-libs/openssl
+			mv ${BUILD_CONF}/../../packages/${TEMP_TARGET} /tmp/packages-${TEMP_TARGET}
 		# signal to non-chroot script that crossdev target environments are ready for next targets in line for chroot
 		# TODO: replace with flock
 		else
@@ -417,6 +427,11 @@ elif [ -e /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages ]
 then
 	rm -rf /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages
 fi
+if [ -e /tmp/packages-${CROSSDEV_TARGET}.${BUILD_NAME} ]
+then
+	mv /tmp/packages-${CROSSDEV_TARGET}.${BUILD_NAME}/* ${BUILD_PKGS}/
+	rmdir /tmp/packages-${CROSSDEV_TARGET}.${BUILD_NAME}
+fi
 ln -s ${BUILD_PKGS} /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages
 
 # sync this crossdev target's repositories (may differ from host environment repositories)
@@ -478,6 +493,12 @@ if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${
 then
 	mv "${BUILD_CONF}/target-portage/profile/package.provided.kernel" "${BUILD_CONF}/target-portage/profile/package.provided"
 fi
+if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ] && \
+	[ ! -e "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs" ]
+then
+	mkdir -p "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs"
+	touch "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/initramfs_list"
+fi
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -ukq --with-bdeps=y `cat ${BUILD_CONF}/worlds/kernel`
@@ -490,9 +511,14 @@ fi
 # ensure presence of /usr/lib64 to avoid potential bugs later
 # TODO: make compatible with merged-usr
 # note: upon further thought, this logic should not affect the musl stage3 seed chroot and may be needed when building glibc targets from it
-if [ ! -e /usr/lib64 ]
+# note: refactored because a symlink breaks glibs builds, while a missing lib64 breaks many target packages' pkgconfig
+if [ ! -e /usr/lib64/pkgconfig ]
 then
-	ln -s lib /usr/lib64
+	if [ ! -e /usr/lib64 ]
+	then
+		mkdir -p /usr/lib64
+	fi
+	ln -s ../lib/pkgconfig /usr/lib64/pkgconfig
 fi
 
 # symlink to latest available kernel sources

@@ -14,7 +14,7 @@ export MNT_TYPE="bind"
 export HIST_TYPE="squashfs"
 export TMP_TYPE="tmpfs"
 
-HELPER_CMD="./build-helper.sh aarch64-unknown-linux-musl:aarch64-unknown-linux-musl:armv6j-unknown-linux-musleabihf:x86_64-unknown-linux-musl rpi4b:rpi3b:rpi01:native"
+HELPER_CMD="./build-helper.sh aarch64-unknown-linux-musl:aarch64-unknown-linux-musl:armv6j-unknown-linux-musleabihf:x86_64-unknown-linux-musl:x86_64-unknown-linux-gnu rpi4b:rpi3b:rpi01:native:lenovo-t470"
 
 [ "${TERM_PROGRAM}" = "tmux" ] && ${HELPER_CMD} 2>&1 || \
 (${HELPER_CMD} 2>&1 | tee ../logs/rpi4b-${STARTER_TIME}.log)

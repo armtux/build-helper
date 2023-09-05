@@ -1,0 +1,144 @@
+diff -urN old/tests/Makefile.am new/tests/Makefile.am
+--- old/tests/Makefile.am	2023-07-20 20:28:50.000000000 +0000
++++ new/tests/Makefile.am	2023-09-05 07:54:47.009519009 +0000
+@@ -53,38 +53,38 @@
+ 	$(LIBRSVG_CFLAGS)
+ 
+ test_resources =	\
+-	$(wildcard $(srcdir)/resources/*.ttf)
++	$(wildcard resources/*.ttf)
+ 
+ test_fixtures =								\
+-	$(wildcard $(srcdir)/fixtures/api/*.svg)			\
+-	$(wildcard $(srcdir)/fixtures/cmdline/*.svg)			\
+-	$(wildcard $(srcdir)/fixtures/cmdline/*.png)			\
+-	$(wildcard $(srcdir)/fixtures/crash/*.svg)			\
+-	$(wildcard $(srcdir)/fixtures/crash/*.png)			\
+-	$(wildcard $(srcdir)/fixtures/errors/*)				\
+-	$(wildcard $(srcdir)/fixtures/geometries/*)			\
+-	$(wildcard $(srcdir)/fixtures/loading/*)			\
+-	$(wildcard $(srcdir)/fixtures/loading/subdir/*)			\
+-	$(wildcard $(srcdir)/fixtures/primitive_geometries/*)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/*.css)			\
+-	$(wildcard $(srcdir)/fixtures/reftests/*.svg)			\
+-	$(wildcard $(srcdir)/fixtures/reftests/*.png)			\
+-	$(wildcard $(srcdir)/fixtures/reftests/*.txt)			\
+-	$(wildcard $(srcdir)/fixtures/reftests/adwaita/*.svg)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/adwaita/*.png)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/bugs/*.svg)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/bugs/*.png)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg1.1/*.svg)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg1.1/*.png)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg1.1/images/*)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg1.1/resources/*)	\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg2/*.svg)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg2/*.png)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/bugs-reftests/*.svg)	\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg2-reftests/*.svg)	\
+-	$(wildcard $(srcdir)/fixtures/render-crash/*.svg)		\
+-	$(wildcard $(srcdir)/fixtures/text/*.svg)		        \
+-	$(wildcard $(srcdir)/fixtures/dimensions/*.svg)
++	$(wildcard fixtures/api/*.svg)			\
++	$(wildcard fixtures/cmdline/*.svg)			\
++	$(wildcard fixtures/cmdline/*.png)			\
++	$(wildcard fixtures/crash/*.svg)			\
++	$(wildcard fixtures/crash/*.png)			\
++	$(wildcard fixtures/errors/*)				\
++	$(wildcard fixtures/geometries/*)			\
++	$(wildcard fixtures/loading/*)			\
++	$(wildcard fixtures/loading/subdir/*)			\
++	$(wildcard fixtures/primitive_geometries/*)		\
++	$(wildcard fixtures/reftests/*.css)			\
++	$(wildcard fixtures/reftests/*.svg)			\
++	$(wildcard fixtures/reftests/*.png)			\
++	$(wildcard fixtures/reftests/*.txt)			\
++	$(wildcard fixtures/reftests/adwaita/*.svg)		\
++	$(wildcard fixtures/reftests/adwaita/*.png)		\
++	$(wildcard fixtures/reftests/bugs/*.svg)		\
++	$(wildcard fixtures/reftests/bugs/*.png)		\
++	$(wildcard fixtures/reftests/svg1.1/*.svg)		\
++	$(wildcard fixtures/reftests/svg1.1/*.png)		\
++	$(wildcard fixtures/reftests/svg1.1/images/*)		\
++	$(wildcard fixtures/reftests/svg1.1/resources/*)	\
++	$(wildcard fixtures/reftests/svg2/*.svg)		\
++	$(wildcard fixtures/reftests/svg2/*.png)		\
++	$(wildcard fixtures/reftests/bugs-reftests/*.svg)	\
++	$(wildcard fixtures/reftests/svg2-reftests/*.svg)	\
++	$(wildcard fixtures/render-crash/*.svg)		\
++	$(wildcard fixtures/text/*.svg)		        \
++	$(wildcard fixtures/dimensions/*.svg)
+ 
+ EXTRA_DIST +=			\
+ 	$(test_sources)		\
+diff -urN old/tests/Makefile.in new/tests/Makefile.in
+--- old/tests/Makefile.in	2023-07-20 20:29:03.000000000 +0000
++++ new/tests/Makefile.in	2023-09-05 07:54:24.755824137 +0000
+@@ -714,38 +714,38 @@
+ 
+ api_LDFLAGS = -static
+ test_resources = \
+-	$(wildcard $(srcdir)/resources/*.ttf)
++	$(wildcard resources/*.ttf)
+ 
+ test_fixtures = \
+-	$(wildcard $(srcdir)/fixtures/api/*.svg)			\
+-	$(wildcard $(srcdir)/fixtures/cmdline/*.svg)			\
+-	$(wildcard $(srcdir)/fixtures/cmdline/*.png)			\
+-	$(wildcard $(srcdir)/fixtures/crash/*.svg)			\
+-	$(wildcard $(srcdir)/fixtures/crash/*.png)			\
+-	$(wildcard $(srcdir)/fixtures/errors/*)				\
+-	$(wildcard $(srcdir)/fixtures/geometries/*)			\
+-	$(wildcard $(srcdir)/fixtures/loading/*)			\
+-	$(wildcard $(srcdir)/fixtures/loading/subdir/*)			\
+-	$(wildcard $(srcdir)/fixtures/primitive_geometries/*)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/*.css)			\
+-	$(wildcard $(srcdir)/fixtures/reftests/*.svg)			\
+-	$(wildcard $(srcdir)/fixtures/reftests/*.png)			\
+-	$(wildcard $(srcdir)/fixtures/reftests/*.txt)			\
+-	$(wildcard $(srcdir)/fixtures/reftests/adwaita/*.svg)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/adwaita/*.png)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/bugs/*.svg)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/bugs/*.png)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg1.1/*.svg)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg1.1/*.png)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg1.1/images/*)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg1.1/resources/*)	\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg2/*.svg)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg2/*.png)		\
+-	$(wildcard $(srcdir)/fixtures/reftests/bugs-reftests/*.svg)	\
+-	$(wildcard $(srcdir)/fixtures/reftests/svg2-reftests/*.svg)	\
+-	$(wildcard $(srcdir)/fixtures/render-crash/*.svg)		\
+-	$(wildcard $(srcdir)/fixtures/text/*.svg)		        \
+-	$(wildcard $(srcdir)/fixtures/dimensions/*.svg)
++	$(wildcard fixtures/api/*.svg)			\
++	$(wildcard fixtures/cmdline/*.svg)			\
++	$(wildcard fixtures/cmdline/*.png)			\
++	$(wildcard fixtures/crash/*.svg)			\
++	$(wildcard fixtures/crash/*.png)			\
++	$(wildcard fixtures/errors/*)				\
++	$(wildcard fixtures/geometries/*)			\
++	$(wildcard fixtures/loading/*)			\
++	$(wildcard fixtures/loading/subdir/*)			\
++	$(wildcard fixtures/primitive_geometries/*)		\
++	$(wildcard fixtures/reftests/*.css)			\
++	$(wildcard fixtures/reftests/*.svg)			\
++	$(wildcard fixtures/reftests/*.png)			\
++	$(wildcard fixtures/reftests/*.txt)			\
++	$(wildcard fixtures/reftests/adwaita/*.svg)		\
++	$(wildcard fixtures/reftests/adwaita/*.png)		\
++	$(wildcard fixtures/reftests/bugs/*.svg)		\
++	$(wildcard fixtures/reftests/bugs/*.png)		\
++	$(wildcard fixtures/reftests/svg1.1/*.svg)		\
++	$(wildcard fixtures/reftests/svg1.1/*.png)		\
++	$(wildcard fixtures/reftests/svg1.1/images/*)		\
++	$(wildcard fixtures/reftests/svg1.1/resources/*)	\
++	$(wildcard fixtures/reftests/svg2/*.svg)		\
++	$(wildcard fixtures/reftests/svg2/*.png)		\
++	$(wildcard fixtures/reftests/bugs-reftests/*.svg)	\
++	$(wildcard fixtures/reftests/svg2-reftests/*.svg)	\
++	$(wildcard fixtures/render-crash/*.svg)		\
++	$(wildcard fixtures/text/*.svg)		        \
++	$(wildcard fixtures/dimensions/*.svg)
+ 
+ all: $(BUILT_SOURCES)
+ 	$(MAKE) $(AM_MAKEFLAGS) all-am

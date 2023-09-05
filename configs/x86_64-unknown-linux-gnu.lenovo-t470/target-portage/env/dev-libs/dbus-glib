@@ -1,0 +1,1 @@
+export GLIB_GENMARSHAL="/usr/bin/glib-genmarshal"

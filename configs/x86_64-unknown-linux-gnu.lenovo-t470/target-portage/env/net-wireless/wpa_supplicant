@@ -1,0 +1,1 @@
+export LIBS="-lreadline -ltinfo"

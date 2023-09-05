@@ -1,0 +1,5 @@
+[gnu-local-lenovo-t470]
+location = /var/db/repos/portage-gnu-lenovo-t470
+priority = 10
+masters = gentoo
+auto-sync = no

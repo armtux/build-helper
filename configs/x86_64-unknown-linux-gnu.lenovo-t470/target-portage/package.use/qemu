@@ -1,0 +1,1 @@
+app-emulation/qemu -jpeg -png -vnc -oss -curl usb gtk opengl virgl
