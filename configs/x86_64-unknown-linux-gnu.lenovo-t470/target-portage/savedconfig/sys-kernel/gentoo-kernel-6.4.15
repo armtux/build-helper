@@ -1,8 +1,8 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86 6.4.13 Kernel Configuration
+# Linux/x86 6.4.15 Kernel Configuration
 #
-CONFIG_CC_VERSION_TEXT="x86_64-unknown-linux-musl-gcc (Gentoo Hardened 13.2.1_p20230826 p7) 13.2.1 20230826"
+CONFIG_CC_VERSION_TEXT="x86_64-unknown-linux-gnu-gcc (Gentoo Hardened 13.2.1_p20230826 p7) 13.2.1 20230826"
 CONFIG_CC_IS_GCC=y
 CONFIG_GCC_VERSION=130201
 CONFIG_CLANG_VERSION=0
@@ -233,7 +233,7 @@ CONFIG_CHECKPOINT_RESTORE=y
 CONFIG_SCHED_AUTOGROUP=y
 CONFIG_RELAY=y
 CONFIG_BLK_DEV_INITRD=y
-CONFIG_INITRAMFS_SOURCE="/usr/x86_64-unknown-linux-musl.native/usr/src/initramfs/initramfs_list"
+CONFIG_INITRAMFS_SOURCE="/usr/x86_64-unknown-linux-gnu.lenovo-t470/usr/src/initramfs/initramfs_list"
 CONFIG_INITRAMFS_ROOT_UID=0
 CONFIG_INITRAMFS_ROOT_GID=0
 CONFIG_RD_GZIP=y

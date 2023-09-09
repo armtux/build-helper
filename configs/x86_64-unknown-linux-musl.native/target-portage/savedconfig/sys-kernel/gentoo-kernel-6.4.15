@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86 6.4.14 Kernel Configuration
+# Linux/x86 6.4.15 Kernel Configuration
 #
 CONFIG_CC_VERSION_TEXT="x86_64-unknown-linux-musl-gcc (Gentoo Hardened 13.2.1_p20230826 p7) 13.2.1 20230826"
 CONFIG_CC_IS_GCC=y

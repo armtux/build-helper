@@ -15,6 +15,7 @@ app-portage/smart-live-rebuild
 app-text/ansifilter
 app-text/asciidoc
 app-text/docbook-xml-dtd
+app-text/po4a
 app-text/scdoc
 cross-aarch64-unknown-linux-musl/binutils
 cross-aarch64-unknown-linux-musl/gcc
@@ -52,6 +53,7 @@ dev-python/pycparser
 dev-util/cbindgen
 dev-util/cmake
 dev-util/desktop-file-utils
+dev-util/intltool
 dev-util/netsurf-buildsystem
 dev-util/scons
 dev-util/wayland-scanner
@@ -64,6 +66,7 @@ media-libs/libpng
 net-dns/c-ares
 net-libs/nodejs
 sys-apps/dbus
+sys-apps/iucode_tool
 sys-apps/hwdata
 sys-devel/bc
 sys-devel/clang

@@ -1,0 +1,15 @@
+diff -urN old/Makefile new/Makefile
+--- old/Makefile	2023-09-09 15:42:43.359561707 +0000
++++ new/Makefile	2023-09-09 15:58:16.751438762 +0000
+@@ -218,7 +218,11 @@
+ nolc: $(BIN)
+ 
+ src/$(ICONS_INCLUDE): src/icons-hash.c src/icons.h src/icons-in-terminal.h
++ifeq ($(BUILD_CC),)
+ 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -DICONS_GENERATE -o src/icons-hash-gen src/icons-hash.c
++else
++	$(BUILD_CC) $(CPPFLAGS) -DICONS_GENERATE -o src/icons-hash-gen src/icons-hash.c
++endif
+ 	./src/icons-hash-gen > $@
+ 
+ install-desktop: $(DESKTOPFILE)

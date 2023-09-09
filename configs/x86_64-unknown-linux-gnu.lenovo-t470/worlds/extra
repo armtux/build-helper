@@ -1,6 +1,7 @@
 app-admin/pwgen
 app-admin/syslog-ng
 app-editors/vim
+app-misc/nnn
 app-misc/tmux
 app-pda/ideviceinstaller
 app-pda/ifuse
@@ -10,7 +11,10 @@ app-portage/cpuid2cpuflags
 app-shells/bash-completion
 dev-vcs/git
 gui-apps/foot
+gui-apps/wofi
 gui-wm/sway
+media-fonts/noto
+media-fonts/noto-emoji
 media-gfx/imv
 media-libs/libva-intel-media-driver
 media-sound/alsa-utils
@@ -23,10 +27,12 @@ net-wireless/iw
 net-wireless/wireless-tools
 net-wireless/wpa_supplicant
 sys-apps/hdparm
+sys-apps/locale-gen
 sys-apps/pciutils
 sys-apps/smartmontools
 sys-apps/usbutils
 sys-auth/seatd
+sys-firmware/intel-microcode
 sys-fs/cryptsetup
 sys-fs/squashfs-tools
 sys-libs/basu
