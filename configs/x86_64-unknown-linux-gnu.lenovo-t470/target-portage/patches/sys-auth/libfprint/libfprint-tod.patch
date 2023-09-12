@@ -1,0 +1,3889 @@
+diff -x '.git*' -urN old/NEWS.tod.md new/NEWS.tod.md
+--- old/NEWS.tod.md	1970-01-01 00:00:00.000000000 +0000
++++ new/NEWS.tod.md	2023-09-12 03:33:34.413123088 +0000
+@@ -0,0 +1,25 @@
++### libfprint-TOD v1
++
++- First public release
++- Based on [libfprint 1.90.1](https://gitlab.freedesktop.org/libfprint/libfprint/-/releases#v1.90.1)
++- Bumped TOD version to 1
++
++### Highlights of the Drivers API changes
++
++Both the driver and external APIs have changed, as both the verify and the identify functions now have early reporting mechanisms.
++
++- Added API for early report of matching results or retry errors
++- Verify and identification completion functions have been simplified
++- Support variadic arguments in error functions
++- Various re-definitions of ownership handling
++- Add convenience API to change state after a timeout
++- Add unit tests for all the drivers API
++
++### Drivers required changes
++As per the early report mechanism, drivers need to adapt, in particular:
++ - New pkg-config dependency name is `libfprint-2-tod-1`
++ - Verification and Identification API for non-image drivers has changed and drivers need to both `report` the result of the action and complete it:
++   - `fpi_device_{verify,identify}_report` must inform whether a match/no-match or identification happened or report a *retry error*.
++   - `fpi_device_{verify,identify}_complete` must be called once the device has completed the verification / identification process,  in case reporting device errors (not retry ones!)
++
++You can see examples of changes needed in the [reference example driver](https://gitlab.freedesktop.org/3v1n0/libfprint-tod-example-driver/-/commit/8308f84f7d1cfd1b9ed0936c13c73b43a4a46772) or the [upstream synaptics driver](https://gitlab.freedesktop.org/libfprint/libfprint/-/merge_requests/112/diffs)
+diff -x '.git*' -urN old/README.md new/README.md
+--- old/README.md	2023-09-12 03:39:54.604929965 +0000
++++ new/README.md	2023-09-12 03:33:34.413123088 +0000
+@@ -19,6 +19,10 @@
+ 
+ </div>
+ 
++## TOD Informations
++
++See https://gitlab.freedesktop.org/3v1n0/libfprint/-/blob/tod/README.tod.md
++
+ ## History
+ 
+ **LibFPrint** was originally developed as part of an
+diff -x '.git*' -urN old/README.tod.md new/README.tod.md
+--- old/README.tod.md	1970-01-01 00:00:00.000000000 +0000
++++ new/README.tod.md	2023-09-12 03:33:34.413123088 +0000
+@@ -0,0 +1,9 @@
++### libfprint-TOD - libfprint for Touch OEM Drivers
++
++This is a light fork of libfprint to expose internal Drivers API in order to
++create drivers as shared libraries.
++
++Fork is hosted at: https://gitlab.freedesktop.org/3v1n0/libfprint/tree/tod
++
++An example driver implementation is available:
++ - https://gitlab.freedesktop.org/3v1n0/libfprint-tod-example-driver
+diff -x '.git*' -urN old/examples/meson.build new/examples/meson.build
+--- old/examples/meson.build	2023-09-12 03:39:54.608263343 +0000
++++ new/examples/meson.build	2023-09-12 03:33:34.416456466 +0000
+@@ -26,3 +26,13 @@
+     install_subdir('prints',
+         install_dir: installed_tests_testdir)
+ endif
++
++if get_option('tod')
++    executable('tod-inspector',
++        sources: 'tod-inspector.c',
++        dependencies: [
++            libfprint_dep,
++            tod_dep,
++        ],
++    )
++endif
+diff -x '.git*' -urN old/examples/tod-inspector.c new/examples/tod-inspector.c
+--- old/examples/tod-inspector.c	1970-01-01 00:00:00.000000000 +0000
++++ new/examples/tod-inspector.c	2023-09-12 03:33:34.416456466 +0000
+@@ -0,0 +1,161 @@
++/*
++ * Shared library loader for libfprint
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include <libfprint/fprint.h>
++
++#include "libfprint/tod/tod-shared-loader.h"
++#include "libfprint/fpi-device.h"
++
++static char *
++id_table_to_string (FpDeviceType     device_type,
++                    const FpIdEntry *id_table)
++{
++  const FpIdEntry *entry;
++  char *str = NULL;
++
++  if (!id_table)
++    return g_strdup ("INVALID: Empty ID table");
++
++  entry = id_table;
++  while (TRUE)
++    {
++      g_autofree char *value = NULL;
++
++      if (device_type == FP_DEVICE_TYPE_VIRTUAL)
++        {
++          if (entry->virtual_envvar)
++            value = g_strdup (entry->virtual_envvar);
++        }
++      else if (device_type == FP_DEVICE_TYPE_USB)
++        {
++          if (entry->vid)
++            value = g_strdup_printf ("%04x:%04x", entry->vid, entry->pid);
++        }
++      else if (device_type == FP_DEVICE_TYPE_UDEV)
++        {
++          if (entry->hid_id.vid)
++            {
++              g_autofree gchar *udev_flags = NULL;
++
++              udev_flags = g_flags_to_string (fpi_device_udev_subtype_flags_get_type (),
++                                              entry->udev_types);
++              value = g_strdup_printf ("%s (%04x:%04x) [%s]",
++                                       entry->spi_acpi_id,
++                                       entry->hid_id.vid, entry->hid_id.pid,
++                                       udev_flags);
++            }
++          else
++            {
++              value = g_strdup (entry->spi_acpi_id);
++            }
++        }
++      else
++        {
++          return g_strdup ("Unsupported device type");
++        }
++
++      if (!value)
++        return str;
++
++      if (!str)
++        {
++          str = g_steal_pointer (&value);
++        }
++      else
++        {
++          g_autofree char *tmp = g_steal_pointer (&str);
++          str = g_strconcat (tmp, ", ", value, NULL);
++        }
++
++      entry++;
++    }
++
++  return str;
++}
++
++static const char *
++device_type_to_string (FpDeviceType device_type)
++{
++  g_autoptr(GEnumClass) device_types = g_type_class_ref (fp_device_type_get_type ());
++  GEnumValue *value = g_enum_get_value (device_types, device_type);
++
++  return value->value_nick;
++}
++
++static const char *
++scan_type_to_string (FpScanType scan_type)
++{
++  g_autoptr(GEnumClass) scan_types = g_type_class_ref (fp_scan_type_get_type ());
++  GEnumValue *value = g_enum_get_value (scan_types, scan_type);
++
++  return value->value_nick;
++}
++
++int
++main (void)
++{
++  g_autoptr(GArray) shared_drivers = NULL;
++  guint i;
++
++  tod_shared_drivers_register ();
++
++  shared_drivers = tod_shared_drivers_get ();
++  g_print ("Found %u drivers\n", shared_drivers->len);
++
++  for (i = 0; i < shared_drivers->len; i++)
++    {
++      GType driver = g_array_index (shared_drivers, GType, i);
++      g_autoptr(FpDeviceClass) cls = g_type_class_ref (driver);
++      g_autofree char *id_table = NULL;
++      g_autofree char *features = NULL;
++
++      id_table = id_table_to_string (cls->type, cls->id_table);
++      features = g_flags_to_string (fp_device_feature_get_type (), cls->features);
++
++      g_print ("ID: %s\n", cls->id);
++      g_print ("Full Name: %s\n", cls->full_name);
++      g_print ("Type: %s\n", device_type_to_string (cls->type));
++      g_print ("Enroll stages: %d\n", cls->nr_enroll_stages);
++      g_print ("Scan type: %s\n", scan_type_to_string (cls->scan_type));
++      g_print ("Seconds to get Hot: %d\n", cls->temp_hot_seconds);
++      g_print ("Seconds to get Cold: %d\n", cls->temp_cold_seconds);
++      g_print ("Supported Devices: %s\n", id_table);
++      g_print ("Supported features: %s\n", features);
++      g_print ("Implemented VFuncs:\n");
++      g_print ("  usb_discover: %s\n", cls->usb_discover ? "true" : "false");
++      g_print ("  probe: %s\n", cls->probe ? "true" : "false");
++      g_print ("  open: %s\n", cls->open ? "true" : "false");
++      g_print ("  close: %s\n", cls->close ? "true" : "false");
++      g_print ("  suspend: %s\n", cls->suspend ? "true" : "false");
++      g_print ("  resume: %s\n", cls->resume ? "true" : "false");
++      g_print ("  enroll: %s\n", cls->enroll ? "true" : "false");
++      g_print ("  verify: %s\n", cls->verify ? "true" : "false");
++      g_print ("  identify: %s\n", cls->identify ? "true" : "false");
++      g_print ("  capture: %s\n", cls->capture ? "true" : "false");
++      g_print ("  list: %s\n", cls->list ? "true" : "false");
++      g_print ("  delete: %s\n", cls->delete ? "true" : "false");
++      g_print ("  clear_storage: %s\n", cls->clear_storage ? "true" : "false");
++      g_print ("  cancel: %s\n", cls->cancel ? "true" : "false");
++
++      if (i < shared_drivers->len - 1)
++        g_print ("------------\n");
++    }
++
++  tod_shared_drivers_unregister ();
++}
+diff -x '.git*' -urN old/libfprint/fp-context.c new/libfprint/fp-context.c
+--- old/libfprint/fp-context.c	2023-09-12 03:39:54.628263614 +0000
++++ new/libfprint/fp-context.c	2023-09-12 03:33:34.433123358 +0000
+@@ -27,6 +27,10 @@
+ 
+ #include <config.h>
+ 
++#ifdef HAVE_LIBFPRINT_TOD
++#include "tod/tod-shared-loader.h"
++#endif
++
+ #ifdef HAVE_UDEV
+ #include <gudev/gudev.h>
+ #endif
+@@ -302,6 +306,8 @@
+     g_object_run_dispose (G_OBJECT (priv->usb_ctx));
+   g_clear_object (&priv->usb_ctx);
+ 
++  tod_shared_drivers_unregister ();
++
+   G_OBJECT_CLASS (fp_context_parent_class)->finalize (object);
+ }
+ 
+@@ -357,6 +363,7 @@
+ fp_context_init (FpContext *self)
+ {
+   g_autoptr(GError) error = NULL;
++  g_autoptr(GArray) shared_drivers = NULL;
+   FpContextPrivate *priv = fp_context_get_instance_private (self);
+   guint i;
+ 
+@@ -364,6 +371,10 @@
+ 
+   priv->drivers = fpi_get_driver_types ();
+ 
++  tod_shared_drivers_register ();
++  shared_drivers = tod_shared_drivers_get ();
++  g_array_prepend_vals (priv->drivers, shared_drivers->data, shared_drivers->len);
++
+   if (get_drivers_whitelist_env ())
+     {
+       for (i = 0; i < priv->drivers->len;)
+diff -x '.git*' -urN old/libfprint/fp-device.h new/libfprint/fp-device.h
+--- old/libfprint/fp-device.h	2023-09-12 03:39:54.628263614 +0000
++++ new/libfprint/fp-device.h	2023-09-12 03:33:34.436456737 +0000
+@@ -43,8 +43,8 @@
+  */
+ typedef enum {
+   FP_DEVICE_TYPE_VIRTUAL,
+-  FP_DEVICE_TYPE_UDEV,
+   FP_DEVICE_TYPE_USB,
++  FP_DEVICE_TYPE_UDEV,
+ } FpDeviceType;
+ 
+ /**
+diff -x '.git*' -urN old/libfprint/fpi-assembling.h new/libfprint/fpi-assembling.h
+--- old/libfprint/fpi-assembling.h	2023-09-12 03:39:54.628263614 +0000
++++ new/libfprint/fpi-assembling.h	2023-09-12 03:33:34.436456737 +0000
+@@ -20,6 +20,7 @@
+ #pragma once
+ 
+ #include "fp-image.h"
++#include "tod/tod-macros.h"
+ 
+ /**
+  * fpi_frame:
+@@ -110,6 +111,9 @@
+   unsigned char (*get_pixel)(struct fpi_line_asmbl_ctx *ctx,
+                              GSList                    *line,
+                              unsigned int               x);
++
++  /*< private >*/
++  TOD_PADDING (32, 0);
+ };
+ 
+ FpImage *fpi_assemble_lines (struct fpi_line_asmbl_ctx *ctx,
+diff -x '.git*' -urN old/libfprint/fpi-device.h new/libfprint/fpi-device.h
+--- old/libfprint/fpi-device.h	2023-09-12 03:39:54.631596992 +0000
++++ new/libfprint/fpi-device.h	2023-09-12 03:33:34.439790115 +0000
+@@ -23,6 +23,7 @@
+ #include "fp-device.h"
+ #include "fp-image.h"
+ #include "fpi-print.h"
++#include "tod/tod-macros.h"
+ 
+ /**
+  * FpiDeviceUdevSubtypeFlags:
+@@ -55,6 +56,12 @@
+       guint vid;
+     };
+     const gchar *virtual_envvar;
++  };
++  guint64 driver_data;
++
++  /* Elements added after TODv1 */
++  union
++  {
+     struct
+     {
+       FpiDeviceUdevSubtypeFlags udev_types;
+@@ -66,7 +73,13 @@
+       } hid_id;
+     };
+   };
+-  guint64 driver_data;
++
++  /*< private >*/
++  /* padding for future expansion */
++  TOD_PADDING_ALIGNED (16,
++                       sizeof (guint) * 2 +
++                       sizeof (FpiDeviceUdevSubtypeFlags) +
++                       sizeof (gpointer));
+ };
+ 
+ /**
+@@ -147,16 +160,11 @@
+   const gchar     *full_name;
+   FpDeviceType     type;
+   const FpIdEntry *id_table;
+-  FpDeviceFeature  features;
+ 
+   /* Defaults for device properties */
+   gint       nr_enroll_stages;
+   FpScanType scan_type;
+ 
+-  /* Simple device temperature model constants */
+-  gint32 temp_hot_seconds;
+-  gint32 temp_cold_seconds;
+-
+   /* Callbacks */
+   gint (*usb_discover) (GUsbDevice *usb_device);
+   void (*probe)    (FpDevice *device);
+@@ -168,11 +176,26 @@
+   void (*capture)  (FpDevice *device);
+   void (*list)     (FpDevice *device);
+   void (*delete)   (FpDevice * device);
+-  void (*clear_storage)  (FpDevice * device);
+ 
+   void (*cancel)   (FpDevice *device);
+-  void (*suspend)  (FpDevice *device);
+-  void (*resume)   (FpDevice *device);
++
++  /* Class elements added after tod-v1 */
++  FpDeviceFeature features;
++
++  /* Simple device temperature model constants */
++  gint32 temp_hot_seconds;
++  gint32 temp_cold_seconds;
++
++  void   (*clear_storage)  (FpDevice * device);
++  void   (*suspend)  (FpDevice *device);
++  void   (*resume)   (FpDevice *device);
++
++  /*< private >*/
++  /* padding for future expansion */
++  TOD_PADDING_ALIGNED8 (32,
++                        sizeof (FpDeviceFeature) +
++                        sizeof (gint32) * 2 +
++                        sizeof (gpointer) * 3);
+ };
+ 
+ void fpi_device_class_auto_initialize_features (FpDeviceClass *device_class);
+diff -x '.git*' -urN old/libfprint/fpi-image-device.h new/libfprint/fpi-image-device.h
+--- old/libfprint/fpi-image-device.h	2023-09-12 03:39:54.631596992 +0000
++++ new/libfprint/fpi-image-device.h	2023-09-12 03:33:34.439790115 +0000
+@@ -62,12 +62,12 @@
+  */
+ typedef enum {
+   FPI_IMAGE_DEVICE_STATE_INACTIVE,
+-  FPI_IMAGE_DEVICE_STATE_ACTIVATING,
+-  FPI_IMAGE_DEVICE_STATE_DEACTIVATING,
+-  FPI_IMAGE_DEVICE_STATE_IDLE,
+   FPI_IMAGE_DEVICE_STATE_AWAIT_FINGER_ON,
+   FPI_IMAGE_DEVICE_STATE_CAPTURE,
+   FPI_IMAGE_DEVICE_STATE_AWAIT_FINGER_OFF,
++  FPI_IMAGE_DEVICE_STATE_ACTIVATING,
++  FPI_IMAGE_DEVICE_STATE_DEACTIVATING,
++  FPI_IMAGE_DEVICE_STATE_IDLE,
+ } FpiImageDeviceState;
+ 
+ /**
+@@ -114,6 +114,10 @@
+   void          (*change_state) (FpImageDevice      *dev,
+                                  FpiImageDeviceState state);
+   void          (*deactivate)   (FpImageDevice *dev);
++
++  /*< private >*/
++  /* padding for future expansion */
++  TOD_PADDING (32, 0);
+ };
+ 
+ void fpi_image_device_set_bz3_threshold (FpImageDevice *self,
+diff -x '.git*' -urN old/libfprint/fpi-image.h new/libfprint/fpi-image.h
+--- old/libfprint/fpi-image.h	2023-09-12 03:39:54.631596992 +0000
++++ new/libfprint/fpi-image.h	2023-09-12 03:33:34.439790115 +0000
+@@ -21,6 +21,7 @@
+ #pragma once
+ 
+ #include "fp-image.h"
++#include "tod/tod-macros.h"
+ 
+ /**
+  * FpiImageFlags:
+@@ -68,6 +69,8 @@
+ 
+   GPtrArray *minutiae;
+   guint      ref_count;
++
++  TOD_PADDING (32, 0);
+ };
+ 
+ gint fpi_std_sq_dev (const guint8 *buf,
+diff -x '.git*' -urN old/libfprint/fpi-spi-transfer.h new/libfprint/fpi-spi-transfer.h
+--- old/libfprint/fpi-spi-transfer.h	2023-09-12 03:39:54.631596992 +0000
++++ new/libfprint/fpi-spi-transfer.h	2023-09-12 03:33:34.439790115 +0000
+@@ -73,6 +73,9 @@
+   /* Data free function */
+   GDestroyNotify free_buffer_wr;
+   GDestroyNotify free_buffer_rd;
++
++  /* padding for future expansion */
++  TOD_PADDING (32, 0);
+ };
+ 
+ GType              fpi_spi_transfer_get_type (void) G_GNUC_CONST;
+diff -x '.git*' -urN old/libfprint/fpi-ssm.c new/libfprint/fpi-ssm.c
+--- old/libfprint/fpi-ssm.c	2023-09-12 03:39:54.631596992 +0000
++++ new/libfprint/fpi-ssm.c	2023-09-12 03:33:34.439790115 +0000
+@@ -765,3 +765,7 @@
+ 
+   fpi_ssm_spi_transfer_cb (transfer, device, weak_ptr, error);
+ }
++
++#ifdef TOD_LIBRARY
++#include "tod/tod-fpi-ssm.c"
++#endif
+diff -x '.git*' -urN old/libfprint/fpi-usb-transfer.h new/libfprint/fpi-usb-transfer.h
+--- old/libfprint/fpi-usb-transfer.h	2023-09-12 03:39:54.631596992 +0000
++++ new/libfprint/fpi-usb-transfer.h	2023-09-12 03:33:34.443123494 +0000
+@@ -102,6 +102,9 @@
+ 
+   /* Data free function */
+   GDestroyNotify free_buffer;
++
++  /* padding for future expansion */
++  TOD_PADDING (32, 0);
+ };
+ 
+ GType              fpi_usb_transfer_get_type (void) G_GNUC_CONST;
+diff -x '.git*' -urN old/libfprint/meson.build new/libfprint/meson.build
+--- old/libfprint/meson.build	2023-09-12 03:39:54.631596992 +0000
++++ new/libfprint/meson.build	2023-09-12 03:33:34.443123494 +0000
+@@ -255,6 +255,10 @@
+     link_with: libnbis,
+     install: false)
+ 
++if get_option('tod')
++    subdir('tod')
++endif
++
+ libfprint_drivers = static_library('fprint-drivers',
+     sources: drivers_sources,
+     c_args: drivers_cflags,
+diff -x '.git*' -urN old/libfprint/tod/libfprint-tod.ver.in new/libfprint/tod/libfprint-tod.ver.in
+--- old/libfprint/tod/libfprint-tod.ver.in	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/libfprint-tod.ver.in	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,251 @@
++LIBFPRINT_TOD_@tod_soversion@.0.0 {
++global:
++    fpi_assemble_frames;
++    fpi_assemble_lines;
++    fpi_byte_reader_dup_data;
++    fpi_byte_reader_dup_string_utf16;
++    fpi_byte_reader_dup_string_utf32;
++    fpi_byte_reader_dup_string_utf8;
++    fpi_byte_reader_free;
++    fpi_byte_reader_get_data;
++    fpi_byte_reader_get_float32_be;
++    fpi_byte_reader_get_float32_le;
++    fpi_byte_reader_get_float64_be;
++    fpi_byte_reader_get_float64_le;
++    fpi_byte_reader_get_int16_be;
++    fpi_byte_reader_get_int16_le;
++    fpi_byte_reader_get_int24_be;
++    fpi_byte_reader_get_int24_le;
++    fpi_byte_reader_get_int32_be;
++    fpi_byte_reader_get_int32_le;
++    fpi_byte_reader_get_int64_be;
++    fpi_byte_reader_get_int64_le;
++    fpi_byte_reader_get_int8;
++    fpi_byte_reader_get_pos;
++    fpi_byte_reader_get_remaining;
++    fpi_byte_reader_get_size;
++    fpi_byte_reader_get_string_utf8;
++    fpi_byte_reader_get_sub_reader;
++    fpi_byte_reader_get_uint16_be;
++    fpi_byte_reader_get_uint16_le;
++    fpi_byte_reader_get_uint24_be;
++    fpi_byte_reader_get_uint24_le;
++    fpi_byte_reader_get_uint32_be;
++    fpi_byte_reader_get_uint32_le;
++    fpi_byte_reader_get_uint64_be;
++    fpi_byte_reader_get_uint64_le;
++    fpi_byte_reader_get_uint8;
++    fpi_byte_reader_init;
++    fpi_byte_reader_masked_scan_uint32;
++    fpi_byte_reader_masked_scan_uint32_peek;
++    fpi_byte_reader_new;
++    fpi_byte_reader_peek_data;
++    fpi_byte_reader_peek_float32_be;
++    fpi_byte_reader_peek_float32_le;
++    fpi_byte_reader_peek_float64_be;
++    fpi_byte_reader_peek_float64_le;
++    fpi_byte_reader_peek_int16_be;
++    fpi_byte_reader_peek_int16_le;
++    fpi_byte_reader_peek_int24_be;
++    fpi_byte_reader_peek_int24_le;
++    fpi_byte_reader_peek_int32_be;
++    fpi_byte_reader_peek_int32_le;
++    fpi_byte_reader_peek_int64_be;
++    fpi_byte_reader_peek_int64_le;
++    fpi_byte_reader_peek_int8;
++    fpi_byte_reader_peek_string_utf8;
++    fpi_byte_reader_peek_sub_reader;
++    fpi_byte_reader_peek_uint16_be;
++    fpi_byte_reader_peek_uint16_le;
++    fpi_byte_reader_peek_uint24_be;
++    fpi_byte_reader_peek_uint24_le;
++    fpi_byte_reader_peek_uint32_be;
++    fpi_byte_reader_peek_uint32_le;
++    fpi_byte_reader_peek_uint64_be;
++    fpi_byte_reader_peek_uint64_le;
++    fpi_byte_reader_peek_uint8;
++    fpi_byte_reader_set_pos;
++    fpi_byte_reader_skip;
++    fpi_byte_reader_skip_string_utf16;
++    fpi_byte_reader_skip_string_utf32;
++    fpi_byte_reader_skip_string_utf8;
++    fpi_byte_writer_ensure_free_space;
++    fpi_byte_writer_fill;
++    fpi_byte_writer_free;
++    fpi_byte_writer_free_and_get_data;
++    fpi_byte_writer_get_remaining;
++    fpi_byte_writer_init;
++    fpi_byte_writer_init_with_data;
++    fpi_byte_writer_init_with_size;
++    fpi_byte_writer_new;
++    fpi_byte_writer_new_with_data;
++    fpi_byte_writer_new_with_size;
++    fpi_byte_writer_put_data;
++    fpi_byte_writer_put_float32_be;
++    fpi_byte_writer_put_float32_le;
++    fpi_byte_writer_put_float64_be;
++    fpi_byte_writer_put_float64_le;
++    fpi_byte_writer_put_int16_be;
++    fpi_byte_writer_put_int16_le;
++    fpi_byte_writer_put_int24_be;
++    fpi_byte_writer_put_int24_le;
++    fpi_byte_writer_put_int32_be;
++    fpi_byte_writer_put_int32_le;
++    fpi_byte_writer_put_int64_be;
++    fpi_byte_writer_put_int64_le;
++    fpi_byte_writer_put_int8;
++    fpi_byte_writer_put_string_utf16;
++    fpi_byte_writer_put_string_utf32;
++    fpi_byte_writer_put_string_utf8;
++    fpi_byte_writer_put_uint16_be;
++    fpi_byte_writer_put_uint16_le;
++    fpi_byte_writer_put_uint24_be;
++    fpi_byte_writer_put_uint24_le;
++    fpi_byte_writer_put_uint32_be;
++    fpi_byte_writer_put_uint32_le;
++    fpi_byte_writer_put_uint64_be;
++    fpi_byte_writer_put_uint64_le;
++    fpi_byte_writer_put_uint8;
++    fpi_byte_writer_reset;
++    fpi_byte_writer_reset_and_get_data;
++    fpi_device_action_error;
++    fpi_device_action_get_type;
++    fpi_device_action_is_cancelled;
++    fpi_device_add_timeout;
++    fpi_device_capture_complete;
++    fpi_device_close_complete;
++    fpi_device_configure_wakeup;
++    fpi_device_delete_complete;
++    fpi_device_enroll_complete;
++    fpi_device_enroll_progress;
++    fpi_device_error_new;
++    fpi_device_error_new_msg;
++    fpi_device_get_cancellable;
++    fpi_device_get_capture_data;
++    fpi_device_get_current_action;
++    fpi_device_get_delete_data;
++    fpi_device_get_driver_data;
++    fpi_device_get_enroll_data;
++    fpi_device_get_identify_data;
++    fpi_device_get_usb_device;
++    fpi_device_get_verify_data;
++    fpi_device_get_virtual_env;
++    fpi_device_identify_complete;
++    fpi_device_identify_report;
++    fpi_device_list_complete;
++    fpi_device_open_complete;
++    fpi_device_probe_complete;
++    fpi_device_remove;
++    fpi_device_report_finger_status;
++    fpi_device_report_finger_status_changes;
++    fpi_device_retry_new;
++    fpi_device_retry_new_msg;
++    fpi_device_set_nr_enroll_stages;
++    fpi_device_set_scan_type;
++    fpi_device_udev_subtype_flags_get_type;
++    fpi_device_update_temp;
++    fpi_device_verify_complete;
++    fpi_device_verify_report;
++    fpi_do_movement_estimation;
++    fpi_image_device_activate;
++    fpi_image_device_activate_complete;
++    fpi_image_device_close_complete;
++    fpi_image_device_deactivate;
++    fpi_image_device_deactivate_complete;
++    fpi_image_device_image_captured;
++    fpi_image_device_open_complete;
++    fpi_image_device_report_finger_status;
++    fpi_image_device_retry_scan;
++    fpi_image_device_session_error;
++    fpi_image_device_set_bz3_threshold;
++    fpi_image_device_state_get_type;
++    fpi_image_flags_get_type;
++    fpi_image_resize;
++    fpi_match_result_get_type;
++    fpi_mean_sq_diff_norm;
++    fpi_print_add_from_image;
++    fpi_print_add_print;
++    fpi_print_bz3_match;
++    fpi_print_fill_from_user_id;
++    fpi_print_generate_user_id;
++    fpi_print_set_device_stored;
++    fpi_print_set_type;
++    fpi_print_type_get_type;
++    fpi_ssm_cancel_delayed_state_change;
++    fpi_ssm_dup_error;
++    fpi_ssm_free;
++    fpi_ssm_get_cur_state;
++    fpi_ssm_get_data;
++    fpi_ssm_get_error;
++    fpi_ssm_jump_to_state;
++    fpi_ssm_jump_to_state_delayed;
++    fpi_ssm_jump_to_state_delayed_1_90;
++    fpi_ssm_mark_completed;
++    fpi_ssm_mark_completed_delayed;
++    fpi_ssm_mark_completed_delayed_1_90;
++    fpi_ssm_mark_failed;
++    fpi_ssm_new_full;
++    fpi_ssm_new_full_1_90;
++    fpi_ssm_next_state;
++    fpi_ssm_next_state_delayed;
++    fpi_ssm_next_state_delayed_1_90;
++    fpi_ssm_set_data;
++    fpi_ssm_start;
++    fpi_ssm_start_subsm;
++    fpi_ssm_usb_transfer_cb;
++    fpi_ssm_usb_transfer_with_weak_pointer_cb;
++    fpi_std_sq_dev;
++    fpi_transfer_type_get_type;
++    fpi_usb_transfer_fill_bulk;
++    fpi_usb_transfer_fill_bulk_full;
++    fpi_usb_transfer_fill_control;
++    fpi_usb_transfer_fill_interrupt;
++    fpi_usb_transfer_fill_interrupt_full;
++    fpi_usb_transfer_get_type;
++    fpi_usb_transfer_new;
++    fpi_usb_transfer_ref;
++    fpi_usb_transfer_submit;
++    fpi_usb_transfer_submit_sync;
++    fpi_usb_transfer_unref;
++local:
++    *;
++};
++
++LIBFPRINT_TOD_@tod_soversion@_1.92 {
++global:
++    fpi_device_class_auto_initialize_features;
++    fpi_device_clear_storage_complete;
++    fpi_device_get_udev_data;
++    fpi_device_update_features;
++    fpi_spi_transfer_get_type;
++    fpi_spi_transfer_new;
++    fpi_spi_transfer_read;
++    fpi_spi_transfer_read_full;
++    fpi_spi_transfer_ref;
++    fpi_spi_transfer_submit;
++    fpi_spi_transfer_submit_sync;
++    fpi_spi_transfer_unref;
++    fpi_spi_transfer_write;
++    fpi_spi_transfer_write_full;
++    fpi_ssm_get_device;
++    fpi_ssm_jump_to_state_delayed;
++    fpi_ssm_mark_completed_delayed;
++    fpi_ssm_new_full;
++    fpi_ssm_next_state_delayed;
++    fpi_ssm_spi_transfer_cb;
++    fpi_ssm_spi_transfer_with_weak_pointer_cb;
++} LIBFPRINT_TOD_@tod_soversion@.0.0;
++
++LIBFPRINT_TOD_@tod_soversion@_1.94 {
++global:
++    fpi_device_critical_enter;
++    fpi_device_critical_leave;
++    fpi_device_resume;
++    fpi_device_resume_complete;
++    fpi_device_suspend;
++    fpi_device_suspend_complete;
++    fpi_ssm_silence_debug;
++
++    /* Keep this always in the current development version */
++    fpi_*;
++} LIBFPRINT_TOD_@tod_soversion@_1.92;
+diff -x '.git*' -urN old/libfprint/tod/meson.build new/libfprint/tod/meson.build
+--- old/libfprint/tod/meson.build	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/meson.build	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,110 @@
++tod_soversion = 1
++tod_subpath = versioned_libname / 'tod-@0@'.format(tod_soversion)
++tod_modules_prefix = get_option('libdir') / tod_subpath
++
++tod_conf = configuration_data()
++tod_conf.set_quoted('TOD_DRIVERS_DIR',
++    get_option('prefix') / get_option('libdir') / tod_subpath)
++configure_file(output: 'tod-config.h', configuration: tod_conf)
++
++gmodule_dep = dependency('gmodule-2.0', version: '>=' + glib_min_version)
++deps += gmodule_dep
++
++mapfile = configure_file(input: 'libfprint-tod.ver.in',
++    output: 'libfprint-tod.ver',
++    configuration: {
++    'tod_soversion' : tod_soversion,
++})
++
++libfprint_tod_private = static_library('fprint-tod-private',
++    sources: [
++        'tod-shared-loader.c',
++        'tod-goodix-wrapper.c',
++    ],
++    include_directories: include_directories('..'),
++    link_with: libfprint_private,
++    dependencies: deps,
++    install: false,
++)
++
++tod_sources = [
++    'tod-wrappers.c',
++    'tod-symbols.h',
++]
++foreach source: libfprint_private_sources
++    tod_sources += '..' / source
++endforeach
++
++libfprint_tod = shared_library(versioned_libname.split('lib')[1] + '-tod',
++    c_args: [
++        '-DTOD_LIBRARY=1',
++        '-include', '@0@'.format(files('tod-symbols.h')[0]),
++    ],
++    sources: [
++        tod_sources,
++    ],
++    soversion: tod_soversion,
++    include_directories: include_directories('..'),
++    link_args: [
++        '-Wl,--version-script,@0@'.format(mapfile),
++        '-Wl,--unresolved-symbols=ignore-in-object-files'
++    ],
++    link_depends: mapfile,
++    link_whole: [libfprint_tod_private],
++    dependencies: deps,
++    install: true)
++
++tod_dep = declare_dependency(
++    link_with: [
++        libfprint_tod,
++        libfprint_tod_private,
++    ])
++deps += tod_dep
++
++pkgconfig = import('pkgconfig')
++pkgconfig.generate(libfprint_tod,
++    name: versioned_libname + '-tod',
++    filebase: '@0@-tod-@1@'.format(versioned_libname, tod_soversion),
++    description: 'Private Libfprint Touch Drivers API',
++    version: meson.project_version() + '+tod@0@'.format(tod_soversion),
++    subdirs: tod_subpath,
++    requires_private: [
++        versioned_libname,
++    ],
++    variables: [
++        'tod_driversdir=${libdir}/@0@'.format(tod_subpath)
++    ]
++)
++
++tod_local_headers = [
++    'tod-macros.h',
++]
++
++tod_headers = []
++extra_libfprint_headers = [
++    'drivers_api.h',
++]
++
++foreach header: libfprint_private_headers + extra_libfprint_headers
++    tod_headers += '..' / header
++endforeach
++
++custom_target('tod_fpi_enums_headers',
++  depends: fpi_enums,
++  input: fpi_enums_h,
++  output: 'fpi-enums.h',
++  command: ['cp', '@INPUT@', '-v', '@OUTPUT@'],
++  install: true,
++  install_dir: get_option('includedir') / tod_subpath)
++
++install_headers(tod_headers,
++    subdir: tod_subpath
++)
++
++install_headers(tod_local_headers,
++    subdir: tod_subpath / 'tod',
++)
++
++# Replace the libfprint private instance with the TOD one in this case as we
++# contain already all the symbols.
++libfprint_private = libfprint_tod
+diff -x '.git*' -urN old/libfprint/tod/tests/check-library-symbols.sh new/libfprint/tod/tests/check-library-symbols.sh
+--- old/libfprint/tod/tests/check-library-symbols.sh	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/tests/check-library-symbols.sh	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,65 @@
++#!/bin/bash
++
++library1=$1
++library2=$2
++
++function cleanup_results() {
++    grep -F -w '.text' | cut -s -f2 | awk '{print $(NF)}'
++}
++
++function dump_exported_symbols() {
++    objdump -TC "$1" | cleanup_results
++}
++
++function dump_defined_symbols() {
++    objdump -t "$1" | cleanup_results
++}
++
++function in_array() {
++  local target=$1
++  shift
++
++  local i;
++  for i in "$@"; do
++    if [[ "$i" == "$target" ]]; then
++        return 0
++    fi
++  done
++
++  return 1
++}
++
++function is_fatal() {
++    if [[ "$1" == "fp_"* ]] || [[ "$1" == "fpi_"* ]]; then
++        return 0
++    fi
++    return 1
++}
++
++lib1_exported=($(dump_exported_symbols "$library1"))
++lib2_exported=($(dump_exported_symbols "$library2"))
++
++lib1_defined=("$(dump_defined_symbols "$library1")")
++lib2_defined=("$(dump_defined_symbols "$library2")")
++
++valid=true
++
++for f in ${lib1_exported[*]}; do
++    if in_array "$f" ${lib2_exported[*]}; then
++        echo "$f function exported in both $library1 and $library2"
++        if is_fatal "$f"; then
++            valid=false
++        fi
++    fi
++done
++
++for f in ${lib1_defined[*]}; do
++    if in_array "$f" ${lib2_defined[*]}; then
++        echo "$f function defined in both $library1 and $library2"
++        if is_fatal "$f"; then
++            valid=false
++        fi
++    fi
++done
++
++[[ "$valid" == true ]] && exit 0
+diff -x '.git*' -urN old/libfprint/tod/tod-fpi-ssm.c new/libfprint/tod/tod-fpi-ssm.c
+--- old/libfprint/tod/tod-fpi-ssm.c	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/tod-fpi-ssm.c	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,67 @@
++/*
++ * Shared library loader for libfprint
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include "tod-wrappers.h"
++#include "fpi-ssm.h"
++
++static gboolean
++check_delayed_cancellable (FpiSsm       *machine,
++                           GCancellable *cancellable)
++{
++  if (g_cancellable_is_cancelled (cancellable))
++    {
++      fpi_ssm_mark_failed (machine, g_error_new (G_IO_ERROR,
++                                                 G_IO_ERROR_CANCELLED,
++                                                 "Action cancelled"));
++      return FALSE;
++    }
++
++  if (cancellable)
++    fp_err ("GCancellable in SSM Delayed actions is ignored as per libfprint 1.92");
++
++  return TRUE;
++}
++
++void
++fpi_ssm_next_state_delayed_1_90 (FpiSsm       *machine,
++                                 int           delay,
++                                 GCancellable *cancellable)
++{
++  if (check_delayed_cancellable (machine, cancellable))
++    fpi_ssm_next_state_delayed (machine, delay);
++}
++
++void
++fpi_ssm_jump_to_state_delayed_1_90 (FpiSsm       *machine,
++                                    int           state,
++                                    int           delay,
++                                    GCancellable *cancellable)
++{
++  if (check_delayed_cancellable (machine, cancellable))
++    fpi_ssm_jump_to_state_delayed (machine, state, delay);
++}
++
++void
++fpi_ssm_mark_completed_delayed_1_90 (FpiSsm       *machine,
++                                     int           delay,
++                                     GCancellable *cancellable)
++{
++  if (check_delayed_cancellable (machine, cancellable))
++    fpi_ssm_mark_completed_delayed (machine, delay);
++}
+diff -x '.git*' -urN old/libfprint/tod/tod-goodix-wrapper.c new/libfprint/tod/tod-goodix-wrapper.c
+--- old/libfprint/tod/tod-goodix-wrapper.c	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/tod-goodix-wrapper.c	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,56 @@
++/*
++ * Shared library loader for libfprint
++ * Copyright (C) 2022 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include "fp-device-private.h"
++#include "fpi-device.h"
++#define FP_COMPONENT "tod"
++
++#include "tod-goodix-wrapper.h"
++
++static void (*goodix_moc_identify)(FpDevice *) = NULL;
++
++static void
++goodix_tod_identify_wrapper (FpDevice *device)
++{
++  GPtrArray *prints;
++
++  fpi_device_get_identify_data (device, &prints);
++
++  if (prints->len)
++    return goodix_moc_identify (device);
++
++  g_warning ("%s does not support identify with empty gallery, let's skip it",
++             fp_device_get_name (device));
++
++  fpi_device_identify_report (device, NULL, NULL, NULL);
++  fpi_device_identify_complete (device, NULL);
++}
++
++void
++goodix_tod_wrapper_init (FpDeviceClass *device_class)
++{
++  g_assert (g_strcmp0 (device_class->id, "goodix-tod") == 0);
++  g_assert (goodix_moc_identify == NULL);
++
++  g_message ("Creating TOD wrapper for %s (%s) driver",
++             device_class->id, device_class->full_name);
++
++  goodix_moc_identify = device_class->identify;
++  device_class->identify = goodix_tod_identify_wrapper;
++}
+diff -x '.git*' -urN old/libfprint/tod/tod-goodix-wrapper.h new/libfprint/tod/tod-goodix-wrapper.h
+--- old/libfprint/tod/tod-goodix-wrapper.h	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/tod-goodix-wrapper.h	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,24 @@
++/*
++ * Shared library loader for libfprint
++ * Copyright (C) 2022 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#include "drivers_api.h"
++
++void goodix_tod_wrapper_init (FpDeviceClass *device_class);
+diff -x '.git*' -urN old/libfprint/tod/tod-macros.h new/libfprint/tod/tod-macros.h
+--- old/libfprint/tod/tod-macros.h	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/tod-macros.h	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,32 @@
++/*
++ * Shared library loader for libfprint
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#define TOD_PADDING(original, wasted) \
++        char _tod_expansion_padding[(GLIB_SIZEOF_VOID_P * (original)) - (wasted)];
++
++#define TOD_PADDING_ALIGNED(original, wasted) \
++        TOD_PADDING (original, (wasted) + GLIB_SIZEOF_VOID_P)
++
++#define TOD_PADDING_ALIGNED4(original, wasted) \
++        TOD_PADDING (original, (wasted) + (GLIB_SIZEOF_VOID_P == 4 ? GLIB_SIZEOF_VOID_P : 0))
++
++#define TOD_PADDING_ALIGNED8(original, wasted) \
++        TOD_PADDING (original, (wasted) + (GLIB_SIZEOF_VOID_P == 8 ? GLIB_SIZEOF_VOID_P : 0))
+diff -x '.git*' -urN old/libfprint/tod/tod-shared-loader.c new/libfprint/tod/tod-shared-loader.c
+--- old/libfprint/tod/tod-shared-loader.c	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/tod-shared-loader.c	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,161 @@
++/*
++ * Shared library loader for libfprint
++ * Copyright (C) 2019 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#define FP_COMPONENT "tod"
++
++#include <gmodule.h>
++
++#include "tod-shared-loader.h"
++#include "tod-goodix-wrapper.h"
++#include "fpi-device.h"
++#include "fpi-log.h"
++#include "tod-config.h"
++
++#define FPI_TOD_ENTRY_GTYPE_GETTER "fpi_tod_shared_driver_get_type"
++
++static GArray *shared_drivers = NULL;
++static GList *shared_modules = NULL;
++
++typedef GModule FpiTodModule;
++typedef GType (*FpiTodShardDriverTypeGetter) (void);
++
++G_DEFINE_AUTOPTR_CLEANUP_FUNC (FpiTodModule, g_module_close);
++
++static const char *
++get_tod_drivers_dir (void)
++{
++  const char *tod_env_path = g_getenv ("FP_TOD_DRIVERS_DIR");
++
++  if (!tod_env_path || *tod_env_path == '\0')
++    return TOD_DRIVERS_DIR;
++
++  return tod_env_path;
++}
++
++void
++tod_shared_drivers_register (void)
++{
++  const char *dirname;
++  const char *basename;
++
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GDir) dir = NULL;
++  gpointer symbol;
++
++  g_assert_null (shared_drivers);
++
++  dirname = get_tod_drivers_dir ();
++  dir = g_dir_open (dirname, 0, &error);
++
++  shared_drivers = g_array_new (TRUE, FALSE, sizeof (GType));
++
++  if (error)
++    {
++      fp_dbg ("Impossible to load the shared drivers dir %s", error->message);
++      return;
++    }
++
++  while ((basename = g_dir_read_name (dir)) != NULL)
++    {
++      g_autoptr(FpiTodModule) module = NULL;
++      g_autoptr(GTypeClass) type_class = NULL;
++      g_autofree char *module_path = NULL;
++      FpiTodShardDriverTypeGetter type_getter;
++      FpDeviceClass *cls;
++      GType driver;
++
++      if (!g_str_has_prefix (basename, "lib"))
++        continue;
++
++      if (!g_str_has_suffix (basename, ".so"))
++        continue;
++
++      module_path = g_build_filename (dirname, basename, NULL);
++
++      if (!g_file_test (module_path, G_FILE_TEST_IS_REGULAR))
++        continue;
++
++      fp_dbg ("Opening driver %s", module_path);
++
++      module = g_module_open (module_path, G_MODULE_BIND_LAZY | G_MODULE_BIND_LOCAL);
++
++      if (!module)
++        {
++          fp_err ("Impossible to load module %s: %s", module_path,
++                  g_module_error ());
++          continue;
++        }
++
++      if (!g_module_symbol (module, FPI_TOD_ENTRY_GTYPE_GETTER, &symbol))
++        {
++          fp_err ("Library %s doesn't expose the required entry point symbol",
++                  module_path);
++          continue;
++        }
++
++      type_getter = symbol;
++      driver = type_getter ();
++      fp_dbg ("Found TOD entry point symbol %p, GType is %lu", symbol, driver);
++
++      if (!G_TYPE_IS_OBJECT (driver) || !g_type_is_a (driver, FP_TYPE_DEVICE))
++        {
++          fp_err ("Library %s returned GType (%lu) doesn't represent a device",
++                  module_path, driver);
++          continue;
++        }
++
++      type_class = g_type_class_ref (driver);
++      g_assert_true (g_type_check_class_is_a (type_class, FP_TYPE_DEVICE));
++
++      cls = FP_DEVICE_CLASS (type_class);
++
++      fp_dbg ("Loading driver %s (%s)", cls->id, cls->full_name);
++      g_array_append_val (shared_drivers, driver);
++
++      if (cls->features == FP_DEVICE_FEATURE_NONE)
++        {
++          g_debug ("Initializing features for driver %s", cls->id);
++          fpi_device_class_auto_initialize_features (cls);
++
++          if (g_strcmp0 (cls->id, "goodix-tod") == 0)
++            goodix_tod_wrapper_init (cls);
++        }
++
++      shared_modules = g_list_prepend (shared_modules,
++                                       g_steal_pointer (&module));
++    }
++}
++
++void
++tod_shared_drivers_unregister (void)
++{
++  g_clear_pointer (&shared_drivers, g_array_unref);
++
++  if (g_strcmp0 (g_getenv ("FP_TOD_KEEP_MODULES_OPEN"), "TRUE") != 0)
++    {
++      g_list_free_full (shared_modules, (GDestroyNotify) g_module_close);
++      shared_modules = NULL;
++    }
++}
++
++GArray *
++tod_shared_drivers_get (void)
++{
++  return g_array_ref (shared_drivers);
++}
+diff -x '.git*' -urN old/libfprint/tod/tod-shared-loader.h new/libfprint/tod/tod-shared-loader.h
+--- old/libfprint/tod/tod-shared-loader.h	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/tod-shared-loader.h	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,28 @@
++/*
++ * Shared library loader for libfprint
++ * Copyright (C) 2019 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#include <glib.h>
++
++
++void tod_shared_drivers_register (void);
++void tod_shared_drivers_unregister (void);
++
++GArray *tod_shared_drivers_get (void);
+diff -x '.git*' -urN old/libfprint/tod/tod-symbols.h new/libfprint/tod/tod-symbols.h
+--- old/libfprint/tod/tod-symbols.h	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/tod-symbols.h	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,56 @@
++/*
++ * Shared library loader for libfprint
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#define LIBFPRINT_2_SYMBOL_VERSION_2_0 "LIBFPRINT_2.0.0"
++#define LIBFPRINT_2_SYMBOL_VERSION(major, minor) \
++        LIBFPRINT_2_SYMBOL_VERSION_ ## major ## _ ## minor
++
++#define TOD_1_SYMBOL_VERSION_1_90 "LIBFPRINT_TOD_1.0.0"
++#define TOD_1_SYMBOL_VERSION_1_92 "LIBFPRINT_TOD_1_1.92"
++#define TOD_1_SYMBOL_VERSION_1_94 "LIBFPRINT_TOD_1_1.94"
++#define TOD_1_SYMBOL_VERSION(major, minor) \
++        TOD_1_SYMBOL_VERSION_ ## major ## _ ## minor
++
++#define TOD_DEFAULT_UPSTREAM_SYMBOL_VERSIONED(symbol, major, minor) \
++        __asm__ (".symver " # symbol "," # symbol "@@@" \
++                 LIBFPRINT_2_SYMBOL_VERSION (major, minor));
++
++#define TOD_DEFAULT_UPSTREAM_SYMBOL(symbol) \
++        __asm__ (".symver " # symbol "," # symbol "@@@");
++
++#define TOD_DEFAULT_VERSION_SYMBOL(symbol, major, minor) \
++        __asm__ (".symver " # symbol "," # symbol "@@@" \
++                 TOD_1_SYMBOL_VERSION (major, minor));
++#define TOD_VERSIONED_SYMBOL(symbol, major, minor) \
++        __asm__ (".symver " # symbol "_" # major "_" #minor "," # symbol "@" \
++                 TOD_1_SYMBOL_VERSION (major, minor));
++
++TOD_DEFAULT_VERSION_SYMBOL (fpi_ssm_new_full, 1, 92)
++TOD_VERSIONED_SYMBOL (fpi_ssm_new_full, 1, 90)
++
++TOD_DEFAULT_VERSION_SYMBOL (fpi_ssm_next_state_delayed, 1, 92)
++TOD_VERSIONED_SYMBOL (fpi_ssm_next_state_delayed, 1, 90)
++
++TOD_DEFAULT_VERSION_SYMBOL (fpi_ssm_jump_to_state_delayed, 1, 92)
++TOD_VERSIONED_SYMBOL (fpi_ssm_jump_to_state_delayed, 1, 90)
++
++TOD_DEFAULT_VERSION_SYMBOL (fpi_ssm_mark_completed_delayed, 1, 92)
++TOD_VERSIONED_SYMBOL (fpi_ssm_mark_completed_delayed, 1, 90)
+diff -x '.git*' -urN old/libfprint/tod/tod-wrappers.c new/libfprint/tod/tod-wrappers.c
+--- old/libfprint/tod/tod-wrappers.c	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/tod-wrappers.c	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,31 @@
++/*
++ * Shared library loader for libfprint
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#define FP_COMPONENT "tod"
++
++#include "tod-wrappers.h"
++
++FpiSsm *
++fpi_ssm_new_full_1_90 (FpDevice             *dev,
++                       FpiSsmHandlerCallback handler,
++                       int                   nr_states,
++                       const char           *machine_name)
++{
++  return fpi_ssm_new_full (dev, handler, nr_states, nr_states, machine_name);
++}
+diff -x '.git*' -urN old/libfprint/tod/tod-wrappers.h new/libfprint/tod/tod-wrappers.h
+--- old/libfprint/tod/tod-wrappers.h	1970-01-01 00:00:00.000000000 +0000
++++ new/libfprint/tod/tod-wrappers.h	2023-09-12 03:33:34.449790251 +0000
+@@ -0,0 +1,39 @@
++/*
++ * Shared library loader for libfprint
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#include "drivers_api.h"
++#include "tod-symbols.h"
++
++extern FpiSsm *fpi_ssm_new_full_1_90 (FpDevice             *dev,
++                                      FpiSsmHandlerCallback handler,
++                                      int                   nr_states,
++                                      const char           *machine_name);
++
++extern void fpi_ssm_next_state_delayed_1_90 (FpiSsm       *machine,
++                                             int           delay,
++                                             GCancellable *cancellable);
++extern void fpi_ssm_jump_to_state_delayed_1_90 (FpiSsm       *machine,
++                                                int           state,
++                                                int           delay,
++                                                GCancellable *cancellable);
++extern void fpi_ssm_mark_completed_delayed_1_90 (FpiSsm       *machine,
++                                                 int           delay,
++                                                 GCancellable *cancellable);
+diff -x '.git*' -urN old/meson.build new/meson.build
+--- old/meson.build	2023-09-12 03:39:54.638263748 +0000
++++ new/meson.build	2023-09-12 03:33:34.449790251 +0000
+@@ -1,5 +1,5 @@
+ project('libfprint', [ 'c', 'cpp' ],
+-    version: '1.94.6',
++    version: '1.94.6+tod1',
+     license: 'LGPLv2.1+',
+     default_options: [
+         'buildtype=debugoptimized',
+@@ -300,6 +300,7 @@
+ # Some dependency resolving happens inside here
+ subdir('libfprint')
+ 
++libfprint_conf.set10('HAVE_LIBFPRINT_TOD', get_option('tod'))
+ configure_file(output: 'config.h', configuration: libfprint_conf)
+ 
+ if get_option('doc')
+diff -x '.git*' -urN old/meson_options.txt new/meson_options.txt
+--- old/meson_options.txt	2023-09-12 03:39:54.638263748 +0000
++++ new/meson_options.txt	2023-09-12 03:33:34.449790251 +0000
+@@ -30,7 +30,13 @@
+        description: 'Whether to build the API documentation',
+        type: 'boolean',
+        value: true)
++
+ option('installed-tests',
+        description: 'Whether to install the installed tests',
+        type: 'boolean',
+        value: true)
++
++option('tod',
++       description: 'Whether to build the TOD library',
++       type: 'boolean',
++       value: true)
+diff -x '.git*' -urN old/tests/meson.build new/tests/meson.build
+--- old/tests/meson.build	2023-09-12 03:39:54.668264154 +0000
++++ new/tests/meson.build	2023-09-12 03:33:34.479790656 +0000
+@@ -6,6 +6,8 @@
+ # Setup paths
+ envs.set('MESON_SOURCE_ROOT', meson.project_source_root())
+ envs.set('MESON_BUILD_ROOT', meson.project_build_root())
++envs.set('G_TEST_SRCDIR', meson.current_source_dir())
++envs.set('G_TEST_BUILDDIR', meson.current_build_dir())
+ envs.prepend('LD_LIBRARY_PATH', meson.project_build_root() / 'libfprint')
+ 
+ # Set FP_DEVICE_EMULATION so that drivers can adapt (e.g. to use fixed
+@@ -71,6 +73,12 @@
+     env: envs,
+     check: installed_tests).stdout().strip()
+ 
++envs_str = ' '.join([
++    envs_str,
++    'G_TEST_SRCDIR=' + installed_tests_testdir,
++    'G_TEST_BUILDDIR=' + installed_tests_execdir,
++])
++
+ if get_option('introspection')
+     envs.prepend('GI_TYPELIB_PATH', meson.project_build_root() / 'libfprint')
+     virtual_devices_tests = [
+@@ -247,10 +255,6 @@
+ 
+ unit_tests_deps = { 'fpi-assembling' : [cairo_dep] }
+ 
+-test_config = configuration_data()
+-test_config.set_quoted('SOURCE_ROOT', meson.project_source_root())
+-test_config_h = configure_file(output: 'test-config.h', configuration: test_config)
+-
+ foreach test_name: unit_tests
+     if unit_tests_deps.has_key(test_name)
+         missing_deps = false
+@@ -278,7 +282,7 @@
+ 
+     basename = 'test-' + test_name
+     test_exe = executable(basename,
+-        sources: [basename + '.c', test_config_h],
++        sources: basename + '.c',
+         dependencies: [ libfprint_private_dep ] + extra_deps,
+         c_args: common_cflags,
+         link_whole: test_utils,
+@@ -361,3 +365,196 @@
+             'LIBFPRINT_TEST_WRAPPER=' + ' '.join(libfprint_wrapper),
+         ])
+ endif
++
++if get_option('tod')
++    tod_test_driver_name = 'fake_test_dev_tod'
++    tod_ssm_test_driver_name = 'ssm_test_dev_tod'
++    tod_envs = envs
++    tod_envs.set('FP_TOD_KEEP_MODULES_OPEN', 'TRUE')
++    tod_envs.set('FP_VIRTUAL_FAKE_DEVICE', 'yes')
++    tod_envs.set('FP_TOD_TEST_DRIVER_NAME', tod_test_driver_name)
++    tod_envs.prepend('LD_LIBRARY_PATH',
++        meson.build_root() / 'libfprint',
++        meson.build_root() / 'libfprint' / 'tod')
++    tod_subversion = meson.project_version().split('+tod')[0]
++    tod_c_args = [
++        '-DTEST_TOD_DRIVER=1',
++        '-DTOD_CURRENT_VERSION=@0@'.format(tod_soversion),
++        '-DTOD_CURRENT_SUBVERSION="@0@"'.format(tod_subversion),
++    ]
++
++    fake_driver = shared_module('device-fake-tod-driver',
++        sources: [
++            'test-device-fake.c',
++            'test-device-fake-tod.c',
++        ],
++        c_args: tod_c_args,
++        link_with: [
++            libfprint_tod,
++        ],
++        include_directories: include_directories('../libfprint'),
++        dependencies: deps,
++        install: installed_tests,
++        install_dir: installed_tests_execdir / 'tod-drivers' / 'current',
++        install_rpath: installed_tests_execdir,
++    )
++
++    fp_todv1_enums = gnome.mkenums_simple('fp-todv1-enums',
++        sources: [
++            'tod-drivers/base-fp-device.h',
++            'tod-drivers/base-fp-print.h',
++            'tod-drivers/base-fpi-device.h',
++            'tod-drivers/base-fpi-image.h',
++            'tod-drivers/base-fpi-image-device.h',
++            'tod-drivers/base-fpi-spi.h',
++            'tod-drivers/base-fpi-usb.h',
++        ],
++        install_header: false)
++
++    test_utils_tod = static_library('fprint-test-utils-tod',
++        sources: [
++            'test-utils.c',
++            'test-utils-tod.c',
++            fp_todv1_enums,
++        ],
++        include_directories: 'tod-drivers',
++        dependencies: libfprint_private_dep,
++        install: false)
++
++    tod_standalone_tests = [
++        'fp-todv1-types',
++    ]
++
++    tod_drivers_tests = [
++        'fp-context-tod',
++        'fp-device-tod',
++        'fpi-device',
++    ]
++
++    tod_driver_infos = {
++        tod_test_driver_name + '_current': {
++            'tod-driver': tod_test_driver_name,
++            'tod-dir': meson.current_build_dir(),
++            'supported-tests': tod_drivers_tests,
++        }
++    }
++
++    if host_machine.cpu_family() == 'x86_64'
++        tod_test_versions = [
++            'v1+1.90.1',
++            'v1+1.90.2',
++            'v1+1.90.3',
++            'v1+1.90.5',
++            'v1+1.94.0',
++            'v1+1.94.3',
++        ]
++
++        foreach tod_version: tod_test_versions
++            tod_dir = 'tod-drivers' / '-'.join([
++                'tod', host_machine.cpu_family(), tod_version
++            ])
++            tod_driver_infos += {
++                tod_test_driver_name + '_' + tod_version: {
++                    'tod-driver': tod_test_driver_name,
++                    'tod-dir': tod_dir,
++                    'supported-tests': tod_drivers_tests,
++                }
++            }
++
++            tod_driver_infos += {
++                tod_ssm_test_driver_name + '_' + tod_version: {
++                    'tod-driver': tod_ssm_test_driver_name,
++                    'tod-dir': tod_dir,
++                    'supported-tests': [
++                        'fp-context-tod',
++                    ],
++                }
++            }
++
++            if installed_tests
++                install_subdir(tod_dir,
++                    install_dir: installed_tests_execdir / 'tod-drivers')
++            endif
++        endforeach
++    endif
++
++    foreach test_name: tod_drivers_tests + tod_standalone_tests
++        basename = 'test-' + test_name
++        sufix = test_name.endswith('-tod') ? '' : '-tod'
++        tod_test_name = test_name + sufix
++        tod_suites = ['unit-tests', 'tod']
++        test_exe = executable(basename + sufix,
++            sources: basename + '.c',
++            dependencies: libfprint_private_dep,
++            c_args: [
++                common_cflags,
++                tod_c_args,
++            ],
++            install: installed_tests,
++            install_dir: installed_tests_execdir,
++            link_with: test_utils_tod,
++        )
++
++        foreach tod_driver, tod_driver_info : tod_driver_infos
++            if test_name not in tod_driver_info.get('supported-tests')
++                continue
++            endif
++            tod_test_envs = tod_envs
++            tod_test_envs.prepend('FP_DRIVERS_WHITELIST', tod_driver)
++            tod_test_envs.set('FP_TOD_DRIVERS_DIR',
++                tod_driver_info.get('tod-dir') == meson.current_build_dir() ?
++                meson.current_build_dir() :
++                meson.current_source_dir() / tod_driver_info.get('tod-dir'))
++            tod_test_envs.set('FP_TOD_TEST_DRIVER_NAME', tod_driver)
++
++            test(tod_test_name + '-' + tod_driver,
++                test_exe,
++                suite: tod_suites + [tod_driver],
++                env: tod_test_envs,
++                depends: fake_driver,
++            )
++
++            if installed_tests
++                tod_envs_str = run_command(python3, '-c', env_parser_cmd,
++                    env: tod_test_envs,
++                    check: true).stdout().strip()
++
++                configure_file(
++                    input: 'test.in',
++                    output: 'tod-' + tod_test_name + '-' + tod_driver + '.test',
++                    install_dir: installed_tests_testdir,
++                    configuration: {
++                        # FIXME: use fs.name() on meson 0.58
++                        'exec': installed_tests_execdir / test_exe.full_path().split('/')[-1],
++                        'env': ' '.join([
++                            tod_envs_str,
++                            'FP_TOD_DRIVERS_DIR=' + installed_tests_execdir /
++                                (tod_driver_info.get('tod-dir') == meson.current_build_dir() ?
++                                'tod-drivers' / 'current' : tod_driver_info.get('tod-dir')),
++                        ]),
++                        'extra_content': '',
++                    },
++                )
++            endif
++        endforeach
++
++        if test_name in tod_standalone_tests
++            test(tod_test_name,
++                test_exe,
++                suite: tod_suites,
++                env: tod_envs,
++            )
++        endif
++    endforeach
++
++    if find_program('objdump', required: false).found()
++        check_libs_symbols = find_program(meson.source_root() /
++            'libfprint/tod/tests/check-library-symbols.sh')
++        test('check-tod-lib-sybmbols',
++            check_libs_symbols,
++            args: [libfprint.full_path(), libfprint_tod.full_path()],
++            depends: [libfprint, libfprint_tod],
++            suite: ['abi-check', tod_suites ],
++        )
++    endif
++endif
+diff -x '.git*' -urN old/tests/test-device-fake-tod.c new/tests/test-device-fake-tod.c
+--- old/tests/test-device-fake-tod.c	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/test-device-fake-tod.c	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,28 @@
++/*
++ * Virtual driver for device debugging
++ *
++ * Copyright (C) 2019 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include "test-device-fake-tod.h"
++#include "test-device-fake.h"
++
++GType
++fpi_tod_shared_driver_get_type (void)
++{
++  return fpi_device_fake_get_type ();
++}
+diff -x '.git*' -urN old/tests/test-device-fake-tod.h new/tests/test-device-fake-tod.h
+--- old/tests/test-device-fake-tod.h	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/test-device-fake-tod.h	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,25 @@
++/*
++ * Virtual driver for device debugging
++ *
++ * Copyright (C) 2019 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#include <glib-object.h>
++
++GType fpi_tod_shared_driver_get_type (void);
+diff -x '.git*' -urN old/tests/test-device-fake.c new/tests/test-device-fake.c
+--- old/tests/test-device-fake.c	2023-09-12 03:39:54.668264154 +0000
++++ new/tests/test-device-fake.c	2023-09-12 03:33:34.479790656 +0000
+@@ -18,7 +18,11 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+  */
+ 
++#ifdef TEST_TOD_DRIVER
++#define FP_COMPONENT "fake_test_dev_tod_current"
++#else
+ #define FP_COMPONENT "fake_test_dev"
++#endif
+ 
+ #include "fpi-log.h"
+ #include "test-device-fake.h"
+diff -x '.git*' -urN old/tests/test-fp-context-tod.c new/tests/test-fp-context-tod.c
+--- old/tests/test-fp-context-tod.c	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/test-fp-context-tod.c	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,124 @@
++/*
++ * FpContext Unit tests
++ * Copyright (C) 2019 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#define FP_COMPONENT "tod"
++
++#include "fpi-log.h"
++#include "fpi-device.h"
++#include <libfprint/fprint.h>
++
++static void
++test_context_new (void)
++{
++  g_autoptr(FpContext) context = fp_context_new ();
++  g_assert_true (FP_CONTEXT (context));
++}
++
++static void
++test_context_has_no_devices (void)
++{
++  g_autoptr(FpContext) context = NULL;
++  GPtrArray *devices;
++  const char *old_drivers_dir = g_getenv ("FP_TOD_DRIVERS_DIR");
++
++  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,
++                         "*Impossible to load the shared drivers dir Error "
++                         "opening directory*__HOPEFULLY_AN_INVALID_PATH*");
++  g_setenv ("FP_TOD_DRIVERS_DIR", "__HOPEFULLY_AN_INVALID_PATH", TRUE);
++  context = fp_context_new ();
++  g_test_assert_expected_messages ();
++  devices = fp_context_get_devices (context);
++  g_setenv ("FP_TOD_DRIVERS_DIR", old_drivers_dir, TRUE);
++
++  g_assert_nonnull (devices);
++  g_assert_cmpuint (devices->len, ==, 0);
++}
++
++static void
++test_context_has_fake_device (void)
++{
++  g_autoptr(FpContext) context = NULL;
++  FpDevice *fake_device = NULL;
++  GPtrArray *devices;
++  const char *tod_name;
++  unsigned int i;
++
++  context = fp_context_new ();
++  devices = fp_context_get_devices (context);
++  tod_name = g_getenv ("FP_TOD_TEST_DRIVER_NAME");
++
++  g_assert_nonnull (devices);
++  g_assert_cmpuint (devices->len, ==, 1);
++
++  for (i = 0; i < devices->len; ++i)
++    {
++      FpDevice *device = devices->pdata[i];
++
++      if (g_strcmp0 (fp_device_get_driver (device), tod_name) == 0)
++        {
++          fake_device = device;
++          break;
++        }
++    }
++
++  g_assert_true (FP_IS_DEVICE (fake_device));
++
++  if (FP_DEVICE_GET_CLASS (fake_device)->open)
++    {
++      GCancellable *cancellable;
++      g_assert_true (fp_device_open_sync (fake_device, NULL, NULL));
++      g_assert_false (fp_device_open_sync (fake_device, NULL, NULL));
++      g_assert_true (fp_device_close_sync (fake_device, NULL, NULL));
++
++      cancellable = g_cancellable_new ();
++      g_cancellable_cancel (cancellable);
++      g_assert_false (fp_device_open_sync (fake_device, cancellable, NULL));
++      g_clear_object (&cancellable);
++    }
++}
++
++static void
++test_context_enumerates_new_devices (void)
++{
++  g_autoptr(FpContext) context = NULL;
++  GPtrArray *devices;
++
++  context = fp_context_new ();
++
++  fp_context_enumerate (context);
++  devices = fp_context_get_devices (context);
++
++  g_assert_nonnull (devices);
++  g_assert_cmpuint (devices->len, ==, 1);
++}
++
++int
++main (int argc, char *argv[])
++{
++  g_test_init (&argc, &argv, NULL);
++
++  g_assert_nonnull (g_getenv ("FP_TOD_DRIVERS_DIR"));
++
++  g_test_add_func ("/context/new", test_context_new);
++  g_test_add_func ("/context/no-devices", test_context_has_no_devices);
++  g_test_add_func ("/context/has-virtual-device", test_context_has_fake_device);
++  g_test_add_func ("/context/enumerates-new-devices", test_context_enumerates_new_devices);
++
++  return g_test_run ();
++}
+diff -x '.git*' -urN old/tests/test-fp-device-tod.c new/tests/test-fp-device-tod.c
+--- old/tests/test-fp-device-tod.c	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/test-fp-device-tod.c	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,249 @@
++/*
++ * FpDevice Unit tests
++ * Copyright (C) 2019 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include <libfprint/fprint.h>
++
++#include "test-utils-tod.h"
++
++static void
++on_device_opened (FpDevice *dev, GAsyncResult *res, FptContext *tctx)
++{
++  g_autoptr(GError) error = NULL;
++
++  g_assert_true (fp_device_open_finish (dev, res, &error));
++  g_assert_no_error (error);
++  g_assert_true (fp_device_is_open (tctx->device));
++
++  tctx->user_data = GUINT_TO_POINTER (TRUE);
++}
++
++static void
++test_device_open_async (void)
++{
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open (tctx->device, NULL, (GAsyncReadyCallback) on_device_opened, tctx);
++
++  while (!GPOINTER_TO_UINT (tctx->user_data))
++    g_main_context_iteration (NULL, TRUE);
++}
++
++static void
++on_device_closed (FpDevice *dev, GAsyncResult *res, FptContext *tctx)
++{
++  g_autoptr(GError) error = NULL;
++
++  g_assert_true (fp_device_close_finish (dev, res, &error));
++  g_assert_no_error (error);
++  g_assert_false (fp_device_is_open (tctx->device));
++
++  tctx->user_data = GUINT_TO_POINTER (TRUE);
++}
++
++static void
++test_device_close_async (void)
++{
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open (tctx->device, NULL, (GAsyncReadyCallback) on_device_opened, tctx);
++  while (!tctx->user_data)
++    g_main_context_iteration (NULL, TRUE);
++
++  tctx->user_data = GUINT_TO_POINTER (FALSE);
++  fp_device_close (tctx->device, NULL, (GAsyncReadyCallback) on_device_closed, tctx);
++
++  while (!GPOINTER_TO_UINT (tctx->user_data))
++    g_main_context_iteration (NULL, TRUE);
++}
++
++static void
++test_device_open_sync (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, &error);
++  g_assert_no_error (error);
++  g_assert_true (fp_device_is_open (tctx->device));
++
++  fp_device_open_sync (tctx->device, NULL, &error);
++  g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_ALREADY_OPEN);
++}
++
++static void
++on_open_notify (FpDevice *rdev, GParamSpec *spec, FptContext *tctx)
++{
++  g_assert_cmpstr (spec->name, ==, "open");
++  tctx->user_data = GUINT_TO_POINTER (TRUE);
++}
++
++static void
++test_device_open_sync_notify (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  g_signal_connect (tctx->device, "notify::open", G_CALLBACK (on_open_notify), tctx);
++  g_assert_true (fp_device_open_sync (tctx->device, NULL, &error));
++  g_assert_no_error (error);
++  g_assert_true (GPOINTER_TO_INT (tctx->user_data));
++}
++
++static void
++test_device_close_sync (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, NULL);
++  fp_device_close_sync (tctx->device, NULL, &error);
++  g_assert_no_error (error);
++  g_assert_false (fp_device_is_open (tctx->device));
++
++  fp_device_close_sync (tctx->device, NULL, &error);
++  g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_NOT_OPEN);
++}
++
++static void
++on_close_notify (FpDevice *rdev, GParamSpec *spec, FptContext *tctx)
++{
++  g_assert_cmpstr (spec->name, ==, "open");
++  tctx->user_data = GUINT_TO_POINTER (TRUE);
++}
++
++static void
++test_device_close_sync_notify (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, NULL);
++
++  g_signal_connect (tctx->device, "notify::open", G_CALLBACK (on_close_notify), tctx);
++  fp_device_close_sync (tctx->device, NULL, &error);
++  g_assert_no_error (error);
++  g_assert_true (GPOINTER_TO_INT (tctx->user_data));
++}
++
++static void
++test_device_get_driver (void)
++{
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, NULL);
++  g_assert_cmpstr (fp_device_get_driver (tctx->device), ==, g_getenv ("FP_TOD_TEST_DRIVER_NAME"));
++}
++
++static void
++test_device_get_device_id (void)
++{
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, NULL);
++  g_assert_cmpstr (fp_device_get_device_id (tctx->device), ==, g_getenv ("FP_TOD_TEST_DRIVER_NAME"));
++}
++
++static void
++test_device_get_name (void)
++{
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, NULL);
++  g_assert_cmpstr (fp_device_get_name (tctx->device), ==,
++                   "Virtual device for debugging");
++}
++
++static void
++test_device_get_scan_type (void)
++{
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, NULL);
++  g_assert_cmpint (fp_device_get_scan_type (tctx->device), ==, FP_SCAN_TYPE_PRESS);
++}
++
++static void
++test_device_get_nr_enroll_stages (void)
++{
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, NULL);
++  g_assert_cmpuint (fp_device_get_nr_enroll_stages (tctx->device), ==, 5);
++}
++
++static void
++test_device_supports_identify (void)
++{
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, NULL);
++  g_assert_true (fp_device_has_feature (tctx->device, FP_DEVICE_FEATURE_IDENTIFY));
++  G_GNUC_BEGIN_IGNORE_DEPRECATIONS
++    g_assert_true (fp_device_supports_identify (tctx->device));
++  G_GNUC_END_IGNORE_DEPRECATIONS
++}
++
++static void
++test_device_supports_capture (void)
++{
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, NULL);
++  g_assert_true (fp_device_has_feature (tctx->device, FP_DEVICE_FEATURE_CAPTURE));
++  G_GNUC_BEGIN_IGNORE_DEPRECATIONS
++    g_assert_true (fp_device_supports_capture (tctx->device));
++  G_GNUC_END_IGNORE_DEPRECATIONS
++}
++
++static void
++test_device_has_storage (void)
++{
++  g_autoptr(FptContext) tctx = fpt_context_new_with_fake_dev ();
++
++  fp_device_open_sync (tctx->device, NULL, NULL);
++  g_assert_true (fp_device_has_feature (tctx->device, FP_DEVICE_FEATURE_STORAGE));
++  G_GNUC_BEGIN_IGNORE_DEPRECATIONS
++    g_assert_true (fp_device_has_storage (tctx->device));
++  G_GNUC_END_IGNORE_DEPRECATIONS
++}
++
++int
++main (int argc, char *argv[])
++{
++  g_test_init (&argc, &argv, NULL);
++
++  g_assert_nonnull (g_getenv ("FP_TOD_DRIVERS_DIR"));
++
++  g_test_add_func ("/device/async/open", test_device_open_async);
++  g_test_add_func ("/device/async/close", test_device_close_async);
++  g_test_add_func ("/device/sync/open", test_device_open_sync);
++  g_test_add_func ("/device/sync/open/notify", test_device_open_sync_notify);
++  g_test_add_func ("/device/sync/close", test_device_close_sync);
++  g_test_add_func ("/device/sync/close/notify", test_device_close_sync_notify);
++  g_test_add_func ("/device/sync/get_driver", test_device_get_driver);
++  g_test_add_func ("/device/sync/get_device_id", test_device_get_device_id);
++  g_test_add_func ("/device/sync/get_name", test_device_get_name);
++  g_test_add_func ("/device/sync/get_scan_type", test_device_get_scan_type);
++  g_test_add_func ("/device/sync/get_nr_enroll_stages", test_device_get_nr_enroll_stages);
++  g_test_add_func ("/device/sync/supports_identify", test_device_supports_identify);
++  g_test_add_func ("/device/sync/supports_capture", test_device_supports_capture);
++  g_test_add_func ("/device/sync/has_storage", test_device_has_storage);
++
++  return g_test_run ();
++}
+diff -x '.git*' -urN old/tests/test-fp-todv1-types.c new/tests/test-fp-todv1-types.c
+--- old/tests/test-fp-todv1-types.c	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/test-fp-todv1-types.c	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,344 @@
++/*
++ * FpDevice Unit tests
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include <libfprint/fprint.h>
++
++#include "drivers_api.h"
++#include "fp-todv1-enums.h"
++
++#include "tod-drivers/base-fp-device.h"
++#include "tod-drivers/base-fp-print.h"
++#include "tod-drivers/base-fpi-device.h"
++#include "tod-drivers/base-fpi-image.h"
++#include "tod-drivers/base-fpi-image-device.h"
++#include "tod-drivers/base-fpi-spi.h"
++#include "tod-drivers/base-fpi-usb.h"
++
++static void
++check_enum_compatibility (GType old_type, GType current_type)
++{
++  g_autoptr(GEnumClass) old_class = g_type_class_ref (old_type);
++  g_autoptr(GEnumClass) current_class = g_type_class_ref (current_type);
++  int i;
++
++  g_debug ("Checking Enum %s vs %s",
++           g_type_name (current_type),
++           g_type_name (old_type));
++
++  g_assert_true (G_TYPE_IS_ENUM (old_type));
++  g_assert_true (G_TYPE_IS_ENUM (current_type));
++  g_assert_cmpuint (old_class->n_values, <=, current_class->n_values);
++
++  for (i = old_class->minimum; i <= old_class->maximum; i++)
++    {
++      GEnumValue *old_value = g_enum_get_value (old_class, i);
++      GEnumValue *current_value;
++
++      if (!old_value)
++        continue;
++
++      current_value = g_enum_get_value_by_nick (current_class,
++                                                old_value->value_nick);
++
++      g_debug (" .. %s (%d)", old_value->value_nick, old_value->value);
++      g_assert_nonnull (current_value);
++      g_assert_cmpuint (old_value->value, ==, current_value->value);
++    }
++}
++
++static void
++check_flags_compatibility (GType old_type, GType current_type)
++{
++  g_autoptr(GFlagsClass) old_class = g_type_class_ref (old_type);
++  g_autoptr(GFlagsClass) current_class = g_type_class_ref (current_type);
++  int i;
++
++  g_debug ("Checking Flags %s vs %s",
++           g_type_name (current_type),
++           g_type_name (old_type));
++
++  g_assert_true (G_TYPE_IS_FLAGS (old_type));
++  g_assert_true (G_TYPE_IS_FLAGS (current_type));
++  g_assert_cmpuint (old_class->n_values, <=, current_class->n_values);
++
++  for (i = 0; i < old_class->n_values; ++i)
++    {
++      GFlagsValue *old_value = &old_class->values[i];
++      GFlagsValue *current_value = g_flags_get_value_by_nick (current_class,
++                                                              old_value->value_nick);
++
++      g_debug (" .. %s (%d)", old_value->value_nick, old_value->value);
++      g_assert_nonnull (current_value);
++      g_assert_cmpuint (old_value->value, ==, current_value->value);
++    }
++}
++
++static void
++check_compatiblity_auto (GType old_type, GType current_type)
++{
++  if (G_TYPE_IS_ENUM (old_type))
++    return check_enum_compatibility (old_type, current_type);
++
++  if (G_TYPE_IS_FLAGS (old_type))
++    return check_flags_compatibility (old_type, current_type);
++
++  g_assert_not_reached ();
++}
++
++#define check_type_compatibility(type, major, minor, micro) \
++        g_debug ("Checking " # type " @ " G_STRLOC); \
++        check_compatiblity_auto (type ## _TOD_V ## major ## _ ## minor ## _ ## micro, type);
++
++#define tod_versioned_type(type, major, minor, micro) \
++        type ## TODV ## major ## _ ## minor ## _ ## micro
++
++#define check_struct_size(type, major, minor, micro) \
++        g_debug ("Checking " # type " v" #major "." #minor "." #micro " size  @ " G_STRLOC); \
++        g_assert_cmpuint (sizeof (tod_versioned_type (type, major, minor, micro)), \
++                          ==, \
++                          sizeof (type))
++
++#define check_struct_member(type, major, minor, micro, member) \
++        g_debug ("Checking " # type " v" #major "." #minor "." #micro "'s " # member " offset @ " G_STRLOC); \
++        g_assert_cmpuint (G_STRUCT_OFFSET (tod_versioned_type (type, major, minor, micro), member), \
++                          ==, \
++                          G_STRUCT_OFFSET (type, member))
++
++static void
++test_device_type (void)
++{
++  check_struct_size (FpIdEntry, 1, 90, 1);
++  check_struct_size (FpIdEntry, 1, 92, 0);
++  check_struct_size (FpDeviceClass, 1, 90, 1);
++  check_struct_size (FpDeviceClass, 1, 92, 0);
++  check_struct_size (FpDeviceClass, 1, 94, 0);
++
++  check_struct_member (FpIdEntry, 1, 90, 1, virtual_envvar);
++  check_struct_member (FpIdEntry, 1, 90, 1, driver_data);
++
++  check_struct_member (FpDeviceClass, 1, 90, 1, id);
++  check_struct_member (FpDeviceClass, 1, 90, 1, full_name);
++  check_struct_member (FpDeviceClass, 1, 90, 1, type);
++  check_struct_member (FpDeviceClass, 1, 90, 1, id_table);
++
++  check_struct_member (FpDeviceClass, 1, 90, 1, nr_enroll_stages);
++  check_struct_member (FpDeviceClass, 1, 90, 1, scan_type);
++
++  check_struct_member (FpDeviceClass, 1, 90, 1, usb_discover);
++  check_struct_member (FpDeviceClass, 1, 90, 1, probe);
++  check_struct_member (FpDeviceClass, 1, 90, 1, open);
++  check_struct_member (FpDeviceClass, 1, 90, 1, close);
++  check_struct_member (FpDeviceClass, 1, 90, 1, enroll);
++  check_struct_member (FpDeviceClass, 1, 90, 1, verify);
++  check_struct_member (FpDeviceClass, 1, 90, 1, identify);
++  check_struct_member (FpDeviceClass, 1, 90, 1, capture);
++  check_struct_member (FpDeviceClass, 1, 90, 1, list);
++  check_struct_member (FpDeviceClass, 1, 90, 1, delete);
++  check_struct_member (FpDeviceClass, 1, 90, 1, cancel);
++
++  /* Version 1.92 */
++  check_struct_member (FpIdEntry, 1, 92, 0, virtual_envvar);
++  check_struct_member (FpIdEntry, 1, 92, 0, driver_data);
++  check_struct_member (FpIdEntry, 1, 92, 0, udev_types);
++  check_struct_member (FpIdEntry, 1, 92, 0, spi_acpi_id);
++  check_struct_member (FpIdEntry, 1, 92, 0, hid_id);
++
++  check_struct_member (FpDeviceClass, 1, 92, 0, usb_discover);
++  check_struct_member (FpDeviceClass, 1, 92, 0, probe);
++  check_struct_member (FpDeviceClass, 1, 92, 0, open);
++  check_struct_member (FpDeviceClass, 1, 92, 0, close);
++  check_struct_member (FpDeviceClass, 1, 92, 0, enroll);
++  check_struct_member (FpDeviceClass, 1, 92, 0, verify);
++  check_struct_member (FpDeviceClass, 1, 92, 0, identify);
++  check_struct_member (FpDeviceClass, 1, 92, 0, capture);
++  check_struct_member (FpDeviceClass, 1, 92, 0, list);
++  check_struct_member (FpDeviceClass, 1, 92, 0, delete);
++  check_struct_member (FpDeviceClass, 1, 92, 0, cancel);
++
++  check_struct_member (FpDeviceClass, 1, 92, 0, id);
++  check_struct_member (FpDeviceClass, 1, 92, 0, full_name);
++  check_struct_member (FpDeviceClass, 1, 92, 0, type);
++  check_struct_member (FpDeviceClass, 1, 92, 0, id_table);
++
++  check_struct_member (FpDeviceClass, 1, 92, 0, nr_enroll_stages);
++  check_struct_member (FpDeviceClass, 1, 92, 0, scan_type);
++
++  check_struct_member (FpDeviceClass, 1, 92, 0, features);
++
++  /* Version 1.94 */
++  check_struct_member (FpDeviceClass, 1, 94, 0, usb_discover);
++  check_struct_member (FpDeviceClass, 1, 94, 0, probe);
++  check_struct_member (FpDeviceClass, 1, 94, 0, open);
++  check_struct_member (FpDeviceClass, 1, 94, 0, close);
++  check_struct_member (FpDeviceClass, 1, 94, 0, enroll);
++  check_struct_member (FpDeviceClass, 1, 94, 0, verify);
++  check_struct_member (FpDeviceClass, 1, 94, 0, identify);
++  check_struct_member (FpDeviceClass, 1, 94, 0, capture);
++  check_struct_member (FpDeviceClass, 1, 94, 0, list);
++  check_struct_member (FpDeviceClass, 1, 94, 0, delete);
++  check_struct_member (FpDeviceClass, 1, 94, 0, cancel);
++  check_struct_member (FpDeviceClass, 1, 94, 0, clear_storage);
++  check_struct_member (FpDeviceClass, 1, 94, 0, suspend);
++  check_struct_member (FpDeviceClass, 1, 94, 0, resume);
++
++  check_struct_member (FpDeviceClass, 1, 94, 0, id);
++  check_struct_member (FpDeviceClass, 1, 94, 0, full_name);
++  check_struct_member (FpDeviceClass, 1, 94, 0, type);
++  check_struct_member (FpDeviceClass, 1, 94, 0, id_table);
++
++  check_struct_member (FpDeviceClass, 1, 94, 0, nr_enroll_stages);
++  check_struct_member (FpDeviceClass, 1, 94, 0, scan_type);
++
++  check_struct_member (FpDeviceClass, 1, 94, 0, features);
++
++  check_struct_member (FpDeviceClass, 1, 94, 0, temp_hot_seconds);
++  check_struct_member (FpDeviceClass, 1, 94, 0, temp_cold_seconds);
++}
++
++static void
++test_image_device_private (void)
++{
++  check_struct_size (FpImage, 1, 90, 1);
++  check_struct_size (FpImageDeviceClass, 1, 90, 1);
++
++  check_struct_member (FpImageDeviceClass, 1, 90, 1, bz3_threshold);
++  check_struct_member (FpImageDeviceClass, 1, 90, 1, img_width);
++  check_struct_member (FpImageDeviceClass, 1, 90, 1, img_height);
++  check_struct_member (FpImageDeviceClass, 1, 90, 1, img_open);
++  check_struct_member (FpImageDeviceClass, 1, 90, 1, img_close);
++  check_struct_member (FpImageDeviceClass, 1, 90, 1, activate);
++  check_struct_member (FpImageDeviceClass, 1, 90, 1, change_state);
++  check_struct_member (FpImageDeviceClass, 1, 90, 1, deactivate);
++}
++
++static void
++test_usb_private (void)
++{
++  check_struct_size (FpiUsbTransfer, 1, 90, 1);
++
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, device);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, ssm);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, length);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, actual_length);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, buffer);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, ref_count);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, type);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, endpoint);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, direction);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, request_type);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, recipient);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, request);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, value);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, idx);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, short_is_error);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, user_data);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, callback);
++  check_struct_member (FpiUsbTransfer, 1, 90, 1, free_buffer);
++}
++
++static void
++test_spi_private (void)
++{
++  check_struct_size (FpiSpiTransfer, 1, 92, 0);
++
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, device);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, ssm);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, length_wr);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, length_rd);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, buffer_wr);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, buffer_rd);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, ref_count);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, spidev_fd);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, user_data);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, callback);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, free_buffer_wr);
++  check_struct_member (FpiSpiTransfer, 1, 92, 0, free_buffer_rd);
++}
++
++static void
++test_device_public_enums (void)
++{
++  check_type_compatibility (FP_TYPE_DEVICE_TYPE, 1, 90, 1);
++  check_type_compatibility (FP_TYPE_SCAN_TYPE, 1, 90, 1);
++  check_type_compatibility (FP_TYPE_DEVICE_RETRY, 1, 90, 1);
++  check_type_compatibility (FP_TYPE_DEVICE_ERROR, 1, 90, 1);
++  check_type_compatibility (FP_TYPE_DEVICE_ERROR, 1, 90, 3);
++  check_type_compatibility (FP_TYPE_DEVICE_ERROR, 1, 90, 4);
++  check_type_compatibility (FP_TYPE_DEVICE_ERROR, 1, 94, 0);
++  check_type_compatibility (FP_TYPE_DEVICE_FEATURE, 1, 92, 0);
++  check_type_compatibility (FP_TYPE_DEVICE_FEATURE, 1, 94, 0);
++  check_type_compatibility (FP_TYPE_DEVICE_FEATURE, 1, 94, 3);
++  check_type_compatibility (FP_TYPE_TEMPERATURE, 1, 94, 0);
++  check_type_compatibility (FPI_TYPE_DEVICE_UDEV_SUBTYPE_FLAGS, 1, 92, 0);
++}
++
++static void
++test_device_private_enums (void)
++{
++  check_type_compatibility (FPI_TYPE_DEVICE_ACTION, 1, 90, 1);
++  check_type_compatibility (FPI_TYPE_DEVICE_ACTION, 1, 92, 0);
++}
++
++static void
++test_print_public_enums (void)
++{
++  check_type_compatibility (FP_TYPE_FINGER, 1, 90, 1);
++  check_type_compatibility (FP_TYPE_FINGER_STATUS_FLAGS, 1, 90, 4);
++}
++
++static void
++test_print_private_enums (void)
++{
++  check_type_compatibility (FPI_TYPE_PRINT_TYPE, 1, 90, 1);
++  check_type_compatibility (FPI_TYPE_MATCH_RESULT, 1, 90, 1);
++}
++
++static void
++test_image_device_enums (void)
++{
++  check_type_compatibility (FPI_TYPE_IMAGE_FLAGS, 1, 90, 1);
++  check_type_compatibility (FPI_TYPE_IMAGE_FLAGS, 1, 90, 2);
++  check_type_compatibility (FPI_TYPE_IMAGE_DEVICE_STATE, 1, 90, 1);
++  check_type_compatibility (FPI_TYPE_IMAGE_DEVICE_STATE, 1, 90, 4);
++}
++
++static void
++test_usb_enums (void)
++{
++  check_type_compatibility (FPI_TYPE_TRANSFER_TYPE, 1, 90, 3);
++}
++
++int
++main (int argc, char *argv[])
++{
++  g_test_init (&argc, &argv, NULL);
++
++  g_test_add_func ("/type/device/private", test_device_type);
++  g_test_add_func ("/type/device/enums", test_device_public_enums);
++  g_test_add_func ("/type/device/private/enums", test_device_private_enums);
++  g_test_add_func ("/type/print/enums", test_print_public_enums);
++  g_test_add_func ("/type/print/private/enums", test_print_private_enums);
++  g_test_add_func ("/type/image-device/private", test_image_device_private);
++  g_test_add_func ("/type/image-device/enums", test_image_device_enums);
++  g_test_add_func ("/type/usb/private", test_usb_private);
++  g_test_add_func ("/type/usb/enums", test_usb_enums);
++  g_test_add_func ("/type/spi/private", test_spi_private);
++
++  return g_test_run ();
++}
+diff -x '.git*' -urN old/tests/test-fpi-assembling.c new/tests/test-fpi-assembling.c
+--- old/tests/test-fpi-assembling.c	2023-09-12 03:39:54.671597533 +0000
++++ new/tests/test-fpi-assembling.c	2023-09-12 03:33:34.479790656 +0000
+@@ -22,7 +22,6 @@
+ #include <cairo.h>
+ #include "fpi-assembling.h"
+ #include "fpi-image.h"
+-#include "test-config.h"
+ 
+ typedef struct
+ {
+@@ -67,8 +66,7 @@
+   g_autoptr(FpImage) fp_img = NULL;
+   GSList *frames = NULL;
+ 
+-  g_assert_false (SOURCE_ROOT == NULL);
+-  path = g_build_path (G_DIR_SEPARATOR_S, SOURCE_ROOT, "tests", "vfs5011", "capture.png", NULL);
++  path = g_test_build_filename (G_TEST_DIST, "vfs5011", "capture.png", NULL);
+ 
+   img = cairo_image_surface_create_from_png (path);
+   data = cairo_image_surface_get_data (img);
+diff -x '.git*' -urN old/tests/test-fpi-device.c new/tests/test-fpi-device.c
+--- old/tests/test-fpi-device.c	2023-09-12 03:39:54.671597533 +0000
++++ new/tests/test-fpi-device.c	2023-09-12 03:33:34.479790656 +0000
+@@ -29,6 +29,120 @@
+ #include "test-device-fake.h"
+ #include "fp-print-private.h"
+ 
++#ifdef TEST_TOD_DRIVER
++
++#include "test-utils-tod.h"
++
++#undef FPI_TYPE_DEVICE_FAKE
++#define FPI_TYPE_DEVICE_FAKE (fpt_context_device_driver_get_type ())
++
++#undef FPI_DEVICE_FAKE
++#define FPI_DEVICE_FAKE(dev) (G_TYPE_CHECK_INSTANCE_CAST ((dev), FPI_TYPE_DEVICE_FAKE, FpiDeviceFake))
++
++static GType
++fpt_context_device_driver_get_type (void)
++{
++  FptContext *tctx = fpt_context_fake_dev_default ();
++
++  return G_TYPE_FROM_CLASS (FP_DEVICE_GET_CLASS (tctx->device));
++}
++
++static int
++tod_get_version (FpDeviceClass *device_class,
++                 const char   **sub_version)
++{
++  g_autofree char *tod_version = NULL;
++  const char *tod_version_info;
++  const char *tod_subversion_info;
++
++  g_debug ("Getting TOD version for driver '%s'", device_class->id);
++  g_assert_true (g_str_has_prefix (device_class->id, "fake_test_dev_tod"));
++
++  tod_version_info = device_class->id + sizeof ("fake_test_dev_tod");
++  g_debug ("Tod version info is '%s'", tod_version_info);
++  g_assert (*tod_version_info != '\0');
++
++  if (sub_version)
++    *sub_version = NULL;
++
++  if (g_str_equal (tod_version_info, "current"))
++    {
++      *sub_version = TOD_CURRENT_SUBVERSION;
++      return TOD_CURRENT_VERSION;
++    }
++
++  g_assert_true (g_str_has_prefix (device_class->id, "fake_test_dev_tod_v"));
++
++  tod_version_info = device_class->id + sizeof ("fake_test_dev_tod_v") - 1;
++  tod_subversion_info = strchr (tod_version_info, '+');
++  g_assert_nonnull (tod_subversion_info);
++  g_assert (*tod_subversion_info != '\0');
++
++  tod_version = g_strndup (tod_version_info,
++                           tod_subversion_info - tod_version_info);
++  tod_subversion_info += 1;
++
++  g_debug ("Tod version is '%s', subversion '%s'",
++           tod_version, tod_subversion_info);
++
++  g_assert_nonnull (tod_version);
++  g_assert (*tod_version != '\0');
++  g_assert (*tod_subversion_info != '\0');
++
++  if (sub_version)
++    *sub_version = tod_subversion_info;
++
++  return atoi (tod_version);
++}
++
++#endif
++
++static gboolean
++tod_check_version (FpDeviceClass *device_class,
++                   int            tod_version,
++                   const char    *tod_subversion)
++{
++#ifdef TEST_TOD_DRIVER
++  g_auto(GStrv) versions = NULL;
++  g_auto(GStrv) wanted_versions = NULL;
++  int version;
++  const char *sub_version;
++
++  version = tod_get_version (device_class, &sub_version);
++
++  if (version != tod_version)
++    return FALSE;
++
++  if (!tod_subversion)
++    return TRUE;
++
++  versions = g_strsplit (sub_version, ".", -1);
++  g_assert_cmpuint (g_strv_length (versions), ==, 3);
++
++  wanted_versions = g_strsplit (tod_subversion, ".", -1);
++  g_assert_cmpuint (g_strv_length (wanted_versions), ==, 3);
++
++  if (atoi (versions[0]) >= atoi (wanted_versions[0]) &&
++      atoi (versions[1]) > atoi (wanted_versions[1]))
++    return TRUE;
++
++  return atoi (versions[0]) == atoi (wanted_versions[0]) &&
++         atoi (versions[1]) == atoi (wanted_versions[1]) &&
++         atoi (versions[2]) >= atoi (wanted_versions[2]);
++#endif
++  return TRUE;
++}
++
++static gboolean
++tod_check_device_version (FpDevice   *device_class,
++                          int         tod_version,
++                          const char *tod_subversion)
++{
++  return tod_check_version (FP_DEVICE_GET_CLASS (device_class),
++                            tod_version,
++                            tod_subversion);
++}
++
+ /* gcc 12.0.1 is complaining about dangling pointers in the auto_close* functions */
+ #if G_GNUC_CHECK_VERSION (12, 0)
+ #pragma GCC diagnostic push
+@@ -39,6 +153,10 @@
+ 
+ typedef FpDevice FpAutoCloseDevice;
+ 
++/* gcc 12.0.1 is complaining about dangling pointers in the auto_close* functions */
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wdangling-pointer"
++
+ static FpAutoCloseDevice *
+ auto_close_fake_device_new (void)
+ {
+@@ -540,6 +658,12 @@
+   FpDeviceClass *dev_class = FP_DEVICE_GET_CLASS (device);
+   FpiDeviceFake *fake_dev;
+ 
++  if (!tod_check_device_version (device, 1, "1.92.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.92.0");
++      return;
++    }
++
+   g_assert_cmpuint (dev_class->features, !=, FP_DEVICE_FEATURE_NONE);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_CAPTURE);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_IDENTIFY);
+@@ -593,7 +717,10 @@
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_LIST);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_DELETE);
+-  g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  if (tod_check_device_version (device, 1, "1.92.0"))
++    g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  else
++    g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
+ 
+   g_async_initable_init_async (G_ASYNC_INITABLE (device),
+                                G_PRIORITY_DEFAULT, NULL, NULL, NULL);
+@@ -607,7 +734,10 @@
+   g_assert_true (fp_device_has_feature (device, FP_DEVICE_FEATURE_STORAGE));
+   g_assert_true (fp_device_has_feature (device, FP_DEVICE_FEATURE_STORAGE_LIST));
+   g_assert_true (fp_device_has_feature (device, FP_DEVICE_FEATURE_STORAGE_DELETE));
+-  g_assert_true (fp_device_has_feature (device, FP_DEVICE_FEATURE_STORAGE_CLEAR));
++  if (tod_check_device_version (device, 1, "1.92.0"))
++    g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  else
++    g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
+ 
+   g_assert_cmpuint (fp_device_get_features (device),
+                     ==,
+@@ -617,7 +747,8 @@
+                     FP_DEVICE_FEATURE_STORAGE |
+                     FP_DEVICE_FEATURE_STORAGE_LIST |
+                     FP_DEVICE_FEATURE_STORAGE_DELETE |
+-                    FP_DEVICE_FEATURE_STORAGE_CLEAR);
++                    (tod_check_device_version (device, 1, "1.92.0") ?
++                     FP_DEVICE_FEATURE_STORAGE_CLEAR : 0));
+ }
+ 
+ static void
+@@ -664,7 +795,10 @@
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_LIST);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_DELETE);
+-  g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  if (tod_check_version (dev_class, 1, "1.92.0"))
++    g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  else
++    g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
+ }
+ 
+ static void
+@@ -685,7 +819,10 @@
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_LIST);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_DELETE);
+-  g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  if (tod_check_version (dev_class, 1, "1.92.0"))
++    g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  else
++    g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
+ }
+ 
+ static void
+@@ -706,7 +843,10 @@
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_LIST);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_DELETE);
+-  g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  if (tod_check_version (dev_class, 1, "1.92.0"))
++    g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  else
++    g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
+ }
+ 
+ static void
+@@ -727,7 +867,10 @@
+   g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_LIST);
+   g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_DELETE);
+-  g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  if (tod_check_version (dev_class, 1, "1.92.0"))
++    g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  else
++    g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
+ }
+ 
+ static void
+@@ -745,10 +888,16 @@
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_IDENTIFY);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_VERIFY);
+   g_assert_false (dev_class->features & FP_DEVICE_FEATURE_DUPLICATES_CHECK);
+-  g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE);
++  if (tod_check_version (dev_class, 1, "1.92.0"))
++    g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE);
++  else
++    g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE);
+   g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_LIST);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_DELETE);
+-  g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  if (tod_check_version (dev_class, 1, "1.92.0"))
++    g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  else
++    g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
+ }
+ 
+ static void
+@@ -769,7 +918,10 @@
+   g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE);
+   g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_LIST);
+   g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_DELETE);
+-  g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  if (tod_check_version (dev_class, 1, "1.92.0"))
++    g_assert_true (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
++  else
++    g_assert_false (dev_class->features & FP_DEVICE_FEATURE_STORAGE_CLEAR);
+ }
+ 
+ static void
+@@ -2112,6 +2264,12 @@
+   FpiDeviceFake *fake_dev;
+   FpPrint *expected_matched;
+ 
++  if (!tod_check_version (dev_class, 1, "1.94.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.94.0");
++      return;
++    }
++
+   device = g_object_new (FPI_TYPE_DEVICE_FAKE, NULL);
+   fake_dev = FPI_DEVICE_FAKE (device);
+   orig_identify = dev_class->identify;
+@@ -2178,6 +2336,12 @@
+   FpiDeviceFake *fake_dev;
+   FpPrint *expected_matched;
+ 
++  if (!tod_check_version (dev_class, 1, "1.94.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.94.0");
++      return;
++    }
++
+   device = g_object_new (FPI_TYPE_DEVICE_FAKE, NULL);
+   fake_dev = FPI_DEVICE_FAKE (device);
+   orig_identify = dev_class->identify;
+@@ -2240,6 +2404,12 @@
+   FpiDeviceFake *fake_dev;
+   FpPrint *expected_matched;
+ 
++  if (!tod_check_version (dev_class, 1, "1.94.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.94.0");
++      return;
++    }
++
+   device = g_object_new (FPI_TYPE_DEVICE_FAKE, NULL);
+   fake_dev = FPI_DEVICE_FAKE (device);
+   orig_identify = dev_class->identify;
+@@ -2297,6 +2467,12 @@
+   g_autoptr(GError) error = NULL;
+   FpiDeviceFake *fake_dev;
+ 
++  if (!tod_check_version (dev_class, 1, "1.94.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.94.0");
++      return;
++    }
++
+   device = g_object_new (FPI_TYPE_DEVICE_FAKE, NULL);
+   fake_dev = FPI_DEVICE_FAKE (device);
+ 
+@@ -2341,6 +2517,12 @@
+   FpiDeviceFake *fake_dev;
+   gint64 start_time;
+ 
++  if (!tod_check_version (dev_class, 1, "1.94.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.94.0");
++      return;
++    }
++
+   dev_class->temp_hot_seconds = 2;
+   dev_class->temp_cold_seconds = 5;
+ 
+@@ -2644,6 +2826,12 @@
+   FpiDeviceFake *fake_dev = FPI_DEVICE_FAKE (device);
+   gboolean ret;
+ 
++  if (!tod_check_device_version (device, 1, "1.92.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.92.0");
++      return;
++    }
++
+   ret = fp_device_clear_storage_sync (device, NULL, &error);
+   g_assert (fake_dev->last_called_function == dev_class->clear_storage);
+   g_assert_no_error (error);
+@@ -2659,6 +2847,12 @@
+   FpiDeviceFake *fake_dev = FPI_DEVICE_FAKE (device);
+   gboolean ret;
+ 
++  if (!tod_check_device_version (device, 1, "1.92.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.92.0");
++      return;
++    }
++
+   fake_dev->ret_error = fpi_device_error_new (FP_DEVICE_ERROR_GENERAL);
+   ret = fp_device_clear_storage_sync (device, NULL, &error);
+   g_assert (fake_dev->last_called_function == dev_class->clear_storage);
+@@ -2765,6 +2959,12 @@
+   void (*orig_verify) (FpDevice *device) = dev_class->verify;
+   FpiDeviceFake *fake_dev = FPI_DEVICE_FAKE (device);
+ 
++  if (!tod_check_device_version (device, 1, "1.94.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.94.0");
++      return;
++    }
++
+   fake_dev->last_called_function = NULL;
+ 
+   dev_class->verify = fake_device_stub_verify;
+@@ -2973,6 +3173,12 @@
+   g_autoptr(GError) error = NULL;
+   FpiDeviceFake *fake_dev;
+ 
++  if (!tod_check_version (dev_class, 1, "1.94.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.94.0");
++      return;
++    }
++
+   dev_class->open = test_driver_action_is_cancelled_open_vfunc;
+   device = g_object_new (FPI_TYPE_DEVICE_FAKE, NULL);
+   fake_dev = FPI_DEVICE_FAKE (device);
+@@ -2993,6 +3199,12 @@
+   g_autoptr(GError) error = NULL;
+   FpiDeviceFake *fake_dev;
+ 
++  if (!tod_check_version (dev_class, 1, "1.94.0"))
++    {
++      g_test_skip ("Feature not supported by TODv1 versions before 1.94.0");
++      return;
++    }
++
+   dev_class->open = test_driver_action_is_cancelled_open_vfunc;
+   device = g_object_new (FPI_TYPE_DEVICE_FAKE, NULL);
+   fake_dev = FPI_DEVICE_FAKE (device);
+@@ -3142,11 +3354,20 @@
+   g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_DATA_INVALID);
+   g_clear_error (&error);
+ 
+-  fake_dev->ret_error = fpi_device_error_new (FP_DEVICE_ERROR_DATA_INVALID);
+-  g_assert_false (fp_device_clear_storage_sync (device, NULL, &error));
+-  g_assert_true (fake_dev->last_called_function == dev_class->clear_storage);
+-  g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_DATA_INVALID);
+-  g_clear_error (&error);
++  if (tod_check_device_version (device, 1, "1.92.0"))
++    {
++      fake_dev->ret_error = fpi_device_error_new (FP_DEVICE_ERROR_DATA_INVALID);
++      g_assert_false (fp_device_clear_storage_sync (device, NULL, &error));
++      g_assert_true (fake_dev->last_called_function == dev_class->clear_storage);
++      g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_DATA_INVALID);
++      g_clear_error (&error);
++    }
++  else
++    {
++      g_assert_false (fp_device_clear_storage_sync (device, NULL, &error));
++      g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_NOT_SUPPORTED);
++      g_clear_error (&error);
++    }
+ 
+   /* Test close last, as we can't operate on a closed device. */
+   fake_dev->ret_error = fpi_device_error_new (FP_DEVICE_ERROR_DATA_INVALID);
+@@ -3247,15 +3468,18 @@
+   g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_GENERAL);
+   g_clear_error (&error);
+ 
+-  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+-                         "*Device failed to pass an error to generic action "
+-                         "error function*");
+-
+-  g_assert_false (fp_device_clear_storage_sync (device, NULL, &error));
+-  g_test_assert_expected_messages ();
+-  g_assert_true (fake_dev->last_called_function == dev_class->clear_storage);
+-  g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_GENERAL);
+-  g_clear_error (&error);
++  if (tod_check_device_version (device, 1, "1.92.0"))
++    {
++      g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
++                             "*Device failed to pass an error to generic action "
++                             "error function*");
++
++      g_assert_false (fp_device_clear_storage_sync (device, NULL, &error));
++      g_test_assert_expected_messages ();
++      g_assert_true (fake_dev->last_called_function == dev_class->clear_storage);
++      g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_GENERAL);
++      g_clear_error (&error);
++    }
+ 
+   /* Test close last, as we can't operate on a closed device. */
+   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+@@ -3390,6 +3614,10 @@
+ int
+ main (int argc, char *argv[])
+ {
++#ifdef TEST_TOD_DRIVER
++  g_autoptr(FptContext) tctx = fpt_context_fake_dev_default ();
++#endif
++
+   g_test_init (&argc, &argv, NULL);
+ 
+   g_test_add_func ("/driver/get_driver", test_driver_get_driver);
+diff -x '.git*' -urN old/tests/test-utils-tod.c new/tests/test-utils-tod.c
+--- old/tests/test-utils-tod.c	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/test-utils-tod.c	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,67 @@
++/*
++ * Unit tests for libfprint
++ * Copyright (C) 2020 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include <libfprint/fprint.h>
++
++#include "test-utils-tod.h"
++
++static FptContext *fake_context = NULL;
++
++FptContext *
++fpt_context_new_with_fake_dev (void)
++{
++  FptContext *tctx;
++  GPtrArray *devices;
++  const char *tod_name;
++  unsigned int i;
++
++  tctx = fpt_context_new ();
++  devices = fp_context_get_devices (tctx->fp_context);
++  tod_name = g_getenv ("FP_TOD_TEST_DRIVER_NAME");
++
++  g_assert_nonnull (tod_name);
++  g_assert_nonnull (devices);
++  g_assert_cmpuint (devices->len, ==, 1);
++
++  for (i = 0; i < devices->len; ++i)
++    {
++      FpDevice *device = devices->pdata[i];
++
++      if (g_strcmp0 (fp_device_get_driver (device), tod_name) == 0)
++        {
++          tctx->device = device;
++          break;
++        }
++    }
++
++  g_assert_true (FP_IS_DEVICE (tctx->device));
++  g_object_add_weak_pointer (G_OBJECT (tctx->device), (gpointer) & tctx->device);
++
++  return tctx;
++}
++
++FptContext *
++fpt_context_fake_dev_default (void)
++{
++  if (fake_context)
++    return fake_context;
++
++  fake_context = fpt_context_new_with_fake_dev ();
++  return fake_context;
++}
+diff -x '.git*' -urN old/tests/test-utils-tod.h new/tests/test-utils-tod.h
+--- old/tests/test-utils-tod.h	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/test-utils-tod.h	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,25 @@
++/*
++ * Unit tests for libfprint
++ * Copyright (C) 2020 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include <glib.h>
++#include "test-utils.h"
++
++FptContext * fpt_context_new_with_fake_dev (void);
++
++FptContext * fpt_context_fake_dev_default (void);
+diff -x '.git*' -urN old/tests/tod-drivers/README.md new/tests/tod-drivers/README.md
+--- old/tests/tod-drivers/README.md	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/tod-drivers/README.md	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,13 @@
++# TOD drivers to use for testing
++
++This directory is used by the test-suite to load and verify pre-built drivers.
++
++For main testing this directory should contain the "fake_test_dev" driver (AKA
++test-device-fake) built using the minimum libfprint TOD we want to support.
++
++In this way the library is loaded during tests and tested for all the upstream
++tests and particularly test-fpi-device.
++
++Such binaries are compiled (for each platform) using the [libfprint TOD test
++drivers](https://gitlab.freedesktop.org/3v1n0/libfprint-tod-test-drivers)
++project, per each supported version.
+diff -x '.git*' -urN old/tests/tod-drivers/base-fp-device.h new/tests/tod-drivers/base-fp-device.h
+--- old/tests/tod-drivers/base-fp-device.h	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/tod-drivers/base-fp-device.h	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,148 @@
++/*
++ * FpDevice - A fingerprint reader device
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#include "tod/tod-macros.h"
++
++typedef struct _FpDevice FpDevice;
++
++typedef enum {
++  FP_DEVICE_TYPE_TODV1_90_1_VIRTUAL,
++  FP_DEVICE_TYPE_TODV1_90_1_USB,
++} FpDeviceTypeTODV1_90_1;
++
++typedef enum {
++  FP_DEVICE_TYPE_TODV1_92_0_VIRTUAL,
++  FP_DEVICE_TYPE_TODV1_92_0_USB,
++  FP_DEVICE_TYPE_TODV1_92_0_UDEV,
++} FpDeviceTypeTODV1_92_0;
++
++typedef enum {
++  FP_SCAN_TYPE_TODV1_90_1_SWIPE,
++  FP_SCAN_TYPE_TODV1_90_1_PRESS,
++} FpScanTypeTODV1_90_1;
++
++typedef enum {
++  FP_DEVICE_RETRY_TODV1_90_1_GENERAL,
++  FP_DEVICE_RETRY_TODV1_90_1_TOO_SHORT,
++  FP_DEVICE_RETRY_TODV1_90_1_CENTER_FINGER,
++  FP_DEVICE_RETRY_TODV1_90_1_REMOVE_FINGER,
++} FpDeviceRetryTODV1_90_1;
++
++typedef enum {
++  FP_DEVICE_ERROR_TODV1_90_1_GENERAL,
++  FP_DEVICE_ERROR_TODV1_90_1_NOT_SUPPORTED,
++  FP_DEVICE_ERROR_TODV1_90_1_NOT_OPEN,
++  FP_DEVICE_ERROR_TODV1_90_1_ALREADY_OPEN,
++  FP_DEVICE_ERROR_TODV1_90_1_BUSY,
++  FP_DEVICE_ERROR_TODV1_90_1_PROTO,
++  FP_DEVICE_ERROR_TODV1_90_1_DATA_INVALID,
++  FP_DEVICE_ERROR_TODV1_90_1_DATA_NOT_FOUND,
++  FP_DEVICE_ERROR_TODV1_90_1_DATA_FULL,
++} FpDeviceErrorTODV1_90_1;
++
++typedef enum {
++  FP_DEVICE_ERROR_TODV1_90_3_GENERAL,
++  FP_DEVICE_ERROR_TODV1_90_3_NOT_SUPPORTED,
++  FP_DEVICE_ERROR_TODV1_90_3_NOT_OPEN,
++  FP_DEVICE_ERROR_TODV1_90_3_ALREADY_OPEN,
++  FP_DEVICE_ERROR_TODV1_90_3_BUSY,
++  FP_DEVICE_ERROR_TODV1_90_3_PROTO,
++  FP_DEVICE_ERROR_TODV1_90_3_DATA_INVALID,
++  FP_DEVICE_ERROR_TODV1_90_3_DATA_NOT_FOUND,
++  FP_DEVICE_ERROR_TODV1_90_3_DATA_FULL,
++  FP_DEVICE_ERROR_TODV1_90_3_DATA_DUPLICATE,
++} FpDeviceErrorTODV1_90_3;
++
++typedef enum {
++  FP_DEVICE_ERROR_TODV1_90_4_GENERAL,
++  FP_DEVICE_ERROR_TODV1_90_4_NOT_SUPPORTED,
++  FP_DEVICE_ERROR_TODV1_90_4_NOT_OPEN,
++  FP_DEVICE_ERROR_TODV1_90_4_ALREADY_OPEN,
++  FP_DEVICE_ERROR_TODV1_90_4_BUSY,
++  FP_DEVICE_ERROR_TODV1_90_4_PROTO,
++  FP_DEVICE_ERROR_TODV1_90_4_DATA_INVALID,
++  FP_DEVICE_ERROR_TODV1_90_4_DATA_NOT_FOUND,
++  FP_DEVICE_ERROR_TODV1_90_4_DATA_FULL,
++  FP_DEVICE_ERROR_TODV1_90_4_DATA_DUPLICATE,
++  /* Leave some room to add more DATA related errors */
++  FP_DEVICE_ERROR_TODV1_90_4_REMOVED = 0x100,
++} FpDeviceErrorTODV1_90_4;
++
++typedef enum /*< flags >*/ {
++  FP_DEVICE_FEATURE_TODV1_92_0_NONE = 0,
++  FP_DEVICE_FEATURE_TODV1_92_0_CAPTURE = 1 << 0,
++  FP_DEVICE_FEATURE_TODV1_92_0_IDENTIFY = 1 << 1,
++  FP_DEVICE_FEATURE_TODV1_92_0_VERIFY = 1 << 2,
++  FP_DEVICE_FEATURE_TODV1_92_0_STORAGE = 1 << 3,
++  FP_DEVICE_FEATURE_TODV1_92_0_STORAGE_LIST = 1 << 4,
++  FP_DEVICE_FEATURE_TODV1_92_0_STORAGE_DELETE = 1 << 5,
++  FP_DEVICE_FEATURE_TODV1_92_0_STORAGE_CLEAR = 1 << 6,
++  FP_DEVICE_FEATURE_TODV1_92_0_DUPLICATES_CHECK = 1 << 7,
++} FpDeviceFeatureTODV1_92_0;
++
++typedef enum /*< flags >*/ {
++  FP_DEVICE_FEATURE_TODV1_94_0_NONE = 0,
++  FP_DEVICE_FEATURE_TODV1_94_0_CAPTURE = 1 << 0,
++  FP_DEVICE_FEATURE_TODV1_94_0_IDENTIFY = 1 << 1,
++  FP_DEVICE_FEATURE_TODV1_94_0_VERIFY = 1 << 2,
++  FP_DEVICE_FEATURE_TODV1_94_0_STORAGE = 1 << 3,
++  FP_DEVICE_FEATURE_TODV1_94_0_STORAGE_LIST = 1 << 4,
++  FP_DEVICE_FEATURE_TODV1_94_0_STORAGE_DELETE = 1 << 5,
++  FP_DEVICE_FEATURE_TODV1_94_0_STORAGE_CLEAR = 1 << 6,
++  FP_DEVICE_FEATURE_TODV1_94_0_DUPLICATES_CHECK = 1 << 7,
++  FP_DEVICE_FEATURE_TODV1_94_0_ALWAYS_ON = 1 << 8,
++} FpDeviceFeatureTODV1_94_0;
++
++typedef enum /*< flags >*/ {
++  FP_DEVICE_FEATURE_TODV1_94_3_NONE = 0,
++  FP_DEVICE_FEATURE_TODV1_94_3_CAPTURE = 1 << 0,
++  FP_DEVICE_FEATURE_TODV1_94_3_IDENTIFY = 1 << 1,
++  FP_DEVICE_FEATURE_TODV1_94_3_VERIFY = 1 << 2,
++  FP_DEVICE_FEATURE_TODV1_94_3_STORAGE = 1 << 3,
++  FP_DEVICE_FEATURE_TODV1_94_3_STORAGE_LIST = 1 << 4,
++  FP_DEVICE_FEATURE_TODV1_94_3_STORAGE_DELETE = 1 << 5,
++  FP_DEVICE_FEATURE_TODV1_94_3_STORAGE_CLEAR = 1 << 6,
++  FP_DEVICE_FEATURE_TODV1_94_3_DUPLICATES_CHECK = 1 << 7,
++  FP_DEVICE_FEATURE_TODV1_94_3_ALWAYS_ON = 1 << 8,
++  FP_DEVICE_FEATURE_TODV1_94_3_UPDATE_PRINT = 1 << 9,
++} FpDeviceFeatureTODV1_94_3;
++
++typedef enum {
++  FP_DEVICE_ERROR_TODV1_94_0_GENERAL,
++  FP_DEVICE_ERROR_TODV1_94_0_NOT_SUPPORTED,
++  FP_DEVICE_ERROR_TODV1_94_0_NOT_OPEN,
++  FP_DEVICE_ERROR_TODV1_94_0_ALREADY_OPEN,
++  FP_DEVICE_ERROR_TODV1_94_0_BUSY,
++  FP_DEVICE_ERROR_TODV1_94_0_PROTO,
++  FP_DEVICE_ERROR_TODV1_94_0_DATA_INVALID,
++  FP_DEVICE_ERROR_TODV1_94_0_DATA_NOT_FOUND,
++  FP_DEVICE_ERROR_TODV1_94_0_DATA_FULL,
++  FP_DEVICE_ERROR_TODV1_94_0_DATA_DUPLICATE,
++  /* Leave some room to add more DATA related errors */
++  FP_DEVICE_ERROR_TODV1_94_0_REMOVED = 0x100,
++  FP_DEVICE_ERROR_TODV1_94_0_TOO_HOT,
++} FpDeviceErrorTODV1_94_0;
++
++typedef enum {
++  FP_TEMPERATURE_TODV1_94_0_COLD,
++  FP_TEMPERATURE_TODV1_94_0_WARM,
++  FP_TEMPERATURE_TODV1_94_0_HOT,
++} FpTemperatureTODV1_94_0;
+diff -x '.git*' -urN old/tests/tod-drivers/base-fp-print.h new/tests/tod-drivers/base-fp-print.h
+--- old/tests/tod-drivers/base-fp-print.h	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/tod-drivers/base-fp-print.h	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,57 @@
++/*
++ * FpDevice - A fingerprint reader device
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++typedef enum {
++  FP_FINGER_TODV1_90_1_UNKNOWN = 0,
++  FP_FINGER_TODV1_90_1_LEFT_THUMB,
++  FP_FINGER_TODV1_90_1_LEFT_INDEX,
++  FP_FINGER_TODV1_90_1_LEFT_MIDDLE,
++  FP_FINGER_TODV1_90_1_LEFT_RING,
++  FP_FINGER_TODV1_90_1_LEFT_LITTLE,
++  FP_FINGER_TODV1_90_1_RIGHT_THUMB,
++  FP_FINGER_TODV1_90_1_RIGHT_INDEX,
++  FP_FINGER_TODV1_90_1_RIGHT_MIDDLE,
++  FP_FINGER_TODV1_90_1_RIGHT_RING,
++  FP_FINGER_TODV1_90_1_RIGHT_LITTLE,
++
++  FP_FINGER_TODV1_90_1_FIRST = FP_FINGER_TODV1_90_1_LEFT_THUMB,
++  FP_FINGER_TODV1_90_1_LAST = FP_FINGER_TODV1_90_1_RIGHT_LITTLE,
++} FpFingerTODV1_90_1;
++
++typedef enum {
++  FP_FINGER_STATUS_TODV1_90_4_NONE    = 0,
++  FP_FINGER_STATUS_TODV1_90_4_NEEDED  = 1 << 0,
++  FP_FINGER_STATUS_TODV1_90_4_PRESENT = 1 << 1,
++} FpFingerStatusFlagsTODV1_90_4;
++
++/* Private flags */
++
++typedef enum {
++  FPI_PRINT_TODV1_90_1_UNDEFINED = 0,
++  FPI_PRINT_TODV1_90_1_RAW,
++  FPI_PRINT_TODV1_90_1_NBIS,
++} FpiPrintTypeTODV1_90_1;
++
++typedef enum {
++  FPI_MATCH_TODV1_90_1_ERROR = -1,
++  FPI_MATCH_TODV1_90_1_FAIL,
++  FPI_MATCH_TODV1_90_1_SUCCESS,
++} FpiMatchResultTODV1_90_1;
+diff -x '.git*' -urN old/tests/tod-drivers/base-fpi-device.h new/tests/tod-drivers/base-fpi-device.h
+--- old/tests/tod-drivers/base-fpi-device.h	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/tod-drivers/base-fpi-device.h	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,246 @@
++/*
++ * FpDevice - A fingerprint reader device
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#include <glib.h>
++#include <glib-object.h>
++
++#include "base-fp-device.h"
++
++typedef struct _GUsbDevice          GUsbDevice;
++
++typedef struct _FpIdEntryTODV1_90_1 FpIdEntryTODV1_90_1;
++
++struct _FpIdEntryTODV1_90_1
++{
++  union
++  {
++    struct
++    {
++      guint pid;
++      guint vid;
++    };
++    const gchar *virtual_envvar;
++  };
++  guint64 driver_data;
++
++  /*< private >*/
++  /* padding for future expansion */
++  TOD_PADDING (16, 0);
++};
++
++struct _FpDeviceClassTODV1_90_1
++{
++  /*< private >*/
++  GObjectClass parent_class;
++
++  /*< public >*/
++  /* Static information about the driver. */
++  const gchar               *id;
++  const gchar               *full_name;
++  FpDeviceTypeTODV1_90_1     type;
++  const FpIdEntryTODV1_90_1 *id_table;
++
++  /* Defaults for device properties */
++  gint                 nr_enroll_stages;
++  FpScanTypeTODV1_90_1 scan_type;
++
++  /* Callbacks */
++  gint (*usb_discover) (GUsbDevice *usb_device);
++  void (*probe)    (FpDevice *device);
++  void (*open)     (FpDevice *device);
++  void (*close)    (FpDevice *device);
++  void (*enroll)   (FpDevice *device);
++  void (*verify)   (FpDevice *device);
++  void (*identify) (FpDevice *device);
++  void (*capture)  (FpDevice *device);
++  void (*list)     (FpDevice *device);
++  void (*delete)   (FpDevice * device);
++
++  void (*cancel)   (FpDevice *device);
++
++  /*< private >*/
++  /* padding for future expansion */
++  TOD_PADDING (32, 0);
++};
++
++typedef struct _FpDeviceClassTODV1_90_1 FpDeviceClassTODV1_90_1;
++
++typedef enum {
++  FPI_DEVICE_ACTION_TODV1_90_1_NONE = 0,
++  FPI_DEVICE_ACTION_TODV1_90_1_PROBE,
++  FPI_DEVICE_ACTION_TODV1_90_1_OPEN,
++  FPI_DEVICE_ACTION_TODV1_90_1_CLOSE,
++  FPI_DEVICE_ACTION_TODV1_90_1_ENROLL,
++  FPI_DEVICE_ACTION_TODV1_90_1_VERIFY,
++  FPI_DEVICE_ACTION_TODV1_90_1_IDENTIFY,
++  FPI_DEVICE_ACTION_TODV1_90_1_CAPTURE,
++  FPI_DEVICE_ACTION_TODV1_90_1_LIST,
++  FPI_DEVICE_ACTION_TODV1_90_1_DELETE,
++} FpiDeviceActionTODV1_90_1;
++
++typedef enum {
++  FPI_DEVICE_ACTION_TODV1_92_0_NONE = 0,
++  FPI_DEVICE_ACTION_TODV1_92_0_PROBE,
++  FPI_DEVICE_ACTION_TODV1_92_0_OPEN,
++  FPI_DEVICE_ACTION_TODV1_92_0_CLOSE,
++  FPI_DEVICE_ACTION_TODV1_92_0_ENROLL,
++  FPI_DEVICE_ACTION_TODV1_92_0_VERIFY,
++  FPI_DEVICE_ACTION_TODV1_92_0_IDENTIFY,
++  FPI_DEVICE_ACTION_TODV1_92_0_CAPTURE,
++  FPI_DEVICE_ACTION_TODV1_92_0_LIST,
++  FPI_DEVICE_ACTION_TODV1_92_0_DELETE,
++  FPI_DEVICE_ACTION_TODV1_92_0_CLEAR_STORAGE
++} FpiDeviceActionTODV1_92_0;
++
++typedef enum {
++  FPI_DEVICE_UDEV_SUBTYPE_TODV1_92_0_SPIDEV = 1 << 0,
++  FPI_DEVICE_UDEV_SUBTYPE_TODV1_92_0_HIDRAW = 1 << 1,
++} FpiDeviceUdevSubtypeFlagsTODV1_92_0;
++
++typedef struct _FpIdEntryTODV1_92_0 FpIdEntryTODV1_92_0;
++
++struct _FpIdEntryTODV1_92_0
++{
++  union
++  {
++    struct
++    {
++      guint pid;
++      guint vid;
++    };
++    const gchar *virtual_envvar;
++  };
++  guint64 driver_data;
++
++  /* Elements added after TODv1 */
++  union
++  {
++    struct
++    {
++      FpiDeviceUdevSubtypeFlagsTODV1_92_0 udev_types;
++      const gchar                        *spi_acpi_id;
++      struct
++      {
++        guint pid;
++        guint vid;
++      } hid_id;
++    };
++  };
++
++  /*< private >*/
++  /* padding for future expansion */
++  TOD_PADDING_ALIGNED (16, sizeof (guint) * 2 +
++                       sizeof (FpiDeviceUdevSubtypeFlagsTODV1_92_0) +
++                       sizeof (gpointer));
++};
++
++typedef struct _FpIdEntryTODV1_92_0 FpIdEntryTODV1_92_0;
++
++struct _FpDeviceClassTODV1_92_0
++{
++  /*< private >*/
++  GObjectClass parent_class;
++
++  /*< public >*/
++  /* Static information about the driver. */
++  const gchar               *id;
++  const gchar               *full_name;
++  FpDeviceTypeTODV1_92_0     type;
++  const FpIdEntryTODV1_92_0 *id_table;
++
++  /* Defaults for device properties */
++  gint                 nr_enroll_stages;
++  FpScanTypeTODV1_90_1 scan_type;
++
++  /* Callbacks */
++  gint (*usb_discover) (GUsbDevice *usb_device);
++  void (*probe)    (FpDevice *device);
++  void (*open)     (FpDevice *device);
++  void (*close)    (FpDevice *device);
++  void (*enroll)   (FpDevice *device);
++  void (*verify)   (FpDevice *device);
++  void (*identify) (FpDevice *device);
++  void (*capture)  (FpDevice *device);
++  void (*list)     (FpDevice *device);
++  void (*delete)   (FpDevice * device);
++
++  void                      (*cancel)   (FpDevice *device);
++
++  FpDeviceFeatureTODV1_92_0 features;
++
++  /*< private >*/
++  /* padding for future expansion */
++  TOD_PADDING (32, sizeof (FpDeviceFeatureTODV1_92_0));
++};
++
++typedef struct _FpDeviceClassTODV1_92_0 FpDeviceClassTODV1_92_0;
++
++
++struct _FpDeviceClassTODV1_94_0
++{
++  /*< private >*/
++  GObjectClass parent_class;
++
++  /*< public >*/
++  /* Static information about the driver. */
++  const gchar               *id;
++  const gchar               *full_name;
++  FpDeviceTypeTODV1_92_0     type;
++  const FpIdEntryTODV1_92_0 *id_table;
++
++  /* Defaults for device properties */
++  gint                 nr_enroll_stages;
++  FpScanTypeTODV1_90_1 scan_type;
++
++  /* Callbacks */
++  gint (*usb_discover) (GUsbDevice *usb_device);
++  void (*probe)    (FpDevice *device);
++  void (*open)     (FpDevice *device);
++  void (*close)    (FpDevice *device);
++  void (*enroll)   (FpDevice *device);
++  void (*verify)   (FpDevice *device);
++  void (*identify) (FpDevice *device);
++  void (*capture)  (FpDevice *device);
++  void (*list)     (FpDevice *device);
++  void (*delete)   (FpDevice * device);
++
++  void (*cancel)   (FpDevice *device);
++
++  /* Class elements added after tod-v1 */
++  FpDeviceFeatureTODV1_94_0 features;
++
++  /* Simple device temperature model constants */
++  gint32 temp_hot_seconds;
++  gint32 temp_cold_seconds;
++
++  void   (*clear_storage)  (FpDevice * device);
++  void   (*suspend)  (FpDevice *device);
++  void   (*resume)   (FpDevice *device);
++
++  /*< private >*/
++  /* padding for future expansion */
++  TOD_PADDING_ALIGNED8 (32,
++                        sizeof (FpDeviceFeatureTODV1_94_0) +
++                        sizeof (gint32) * 2 +
++                        sizeof (gpointer) * 3)
++};
++
++typedef struct _FpDeviceClassTODV1_94_0 FpDeviceClassTODV1_94_0;
+diff -x '.git*' -urN old/tests/tod-drivers/base-fpi-image-device.h new/tests/tod-drivers/base-fpi-image-device.h
+--- old/tests/tod-drivers/base-fpi-image-device.h	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/tod-drivers/base-fpi-image-device.h	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,61 @@
++/*
++ * FpImageDevice - An image based fingerprint reader device
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#include "base-fpi-device.h"
++
++typedef struct _FpImageDevice FpImageDevice;
++
++typedef enum {
++  FPI_IMAGE_DEVICE_STATE_TODV1_90_1_INACTIVE,
++  FPI_IMAGE_DEVICE_STATE_TODV1_90_1_AWAIT_FINGER_ON,
++  FPI_IMAGE_DEVICE_STATE_TODV1_90_1_CAPTURE,
++  FPI_IMAGE_DEVICE_STATE_TODV1_90_1_AWAIT_FINGER_OFF,
++} FpiImageDeviceStateTODV1_90_1;
++
++typedef enum {
++  FPI_IMAGE_DEVICE_STATE_TODV1_92_0_INACTIVE,
++  FPI_IMAGE_DEVICE_STATE_TODV1_92_0_AWAIT_FINGER_ON,
++  FPI_IMAGE_DEVICE_STATE_TODV1_92_0_CAPTURE,
++  FPI_IMAGE_DEVICE_STATE_TODV1_92_0_AWAIT_FINGER_OFF,
++  FPI_IMAGE_DEVICE_STATE_TODV1_92_0_ACTIVATING,
++  FPI_IMAGE_DEVICE_STATE_TODV1_92_0_DEACTIVATING,
++  FPI_IMAGE_DEVICE_STATE_TODV1_92_0_IDLE,
++} FpiImageDeviceStateTODV1_90_4;
++
++typedef struct _FpImageDeviceClassTODV1_90_1
++{
++  FpDeviceClassTODV1_90_1 parent_class;
++
++  gint                    bz3_threshold;
++  gint                    img_width;
++  gint                    img_height;
++
++  void (*img_open)(FpImageDevice *dev);
++  void (*img_close)(FpImageDevice *dev);
++  void (*activate)(FpImageDevice *dev);
++  void (*change_state)(FpImageDevice                *dev,
++                       FpiImageDeviceStateTODV1_90_1 state);
++  void (*deactivate)(FpImageDevice *dev);
++
++  /*< private >*/
++  /* padding for future expansion */
++  TOD_PADDING (32, 0);
++} FpImageDeviceClassTODV1_90_1;
+diff -x '.git*' -urN old/tests/tod-drivers/base-fpi-image.h new/tests/tod-drivers/base-fpi-image.h
+--- old/tests/tod-drivers/base-fpi-image.h	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/tod-drivers/base-fpi-image.h	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,64 @@
++/*
++ * FpImageDevice - An image based fingerprint reader device
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#include <glib.h>
++#include <glib-object.h>
++
++#include "tod/tod-macros.h"
++
++typedef struct _FpImage           FpImage;
++typedef struct _FpImageTODV1_90_1 FpImageTODV1_90_1;
++
++typedef enum {
++  FPI_IMAGE_TODV1_90_1_V_FLIPPED       = 1 << 0,
++  FPI_IMAGE_TODV1_90_1_H_FLIPPED       = 1 << 1,
++  FPI_IMAGE_TODV1_90_1_COLORS_INVERTED = 1 << 2,
++} FpiImageFlagsTODV1_90_1;
++
++typedef enum {
++  FPI_IMAGE_TODV1_90_2_V_FLIPPED       = 1 << 0,
++  FPI_IMAGE_TODV1_90_2_H_FLIPPED       = 1 << 1,
++  FPI_IMAGE_TODV1_90_2_COLORS_INVERTED = 1 << 2,
++  FPI_IMAGE_TODV1_90_2_PARTIAL         = 1 << 3,
++} FpiImageFlagsTODV1_90_2;
++
++struct _FpImageTODV1_90_1
++{
++  /*< private >*/
++  GObject parent;
++
++  /*< public >*/
++  guint                   width;
++  guint                   height;
++
++  gdouble                 ppmm;
++
++  FpiImageFlagsTODV1_90_1 flags;
++
++  /*< private >*/
++  guint8    *data;
++  guint8    *binarized;
++
++  GPtrArray *minutiae;
++  guint      ref_count;
++
++  TOD_PADDING (32, 0);
++};
+diff -x '.git*' -urN old/tests/tod-drivers/base-fpi-spi.h new/tests/tod-drivers/base-fpi-spi.h
+--- old/tests/tod-drivers/base-fpi-spi.h	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/tod-drivers/base-fpi-spi.h	2023-09-12 03:33:34.479790656 +0000
+@@ -0,0 +1,60 @@
++/*
++ * FpDevice - A fingerprint reader device
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#include "base-fpi-device.h"
++
++typedef struct _FpiSpiTransferTODV1_92_0 FpiSpiTransferTODV1_92_0;
++typedef struct _FpiSsm                   FpiSsm;
++
++typedef void (*FpiSpiTransferCallbackTODV1_92_0)(FpiSpiTransferTODV1_92_0 *transfer,
++                                                 FpDevice                 *dev,
++                                                 gpointer                  user_data,
++                                                 GError                   *error);
++
++struct _FpiSpiTransferTODV1_92_0
++{
++  /*< public >*/
++  FpDevice *device;
++
++  FpiSsm   *ssm;
++
++  gssize    length_wr;
++  gssize    length_rd;
++
++  guchar   *buffer_wr;
++  guchar   *buffer_rd;
++
++  /*< private >*/
++  guint ref_count;
++
++  int   spidev_fd;
++
++  /* Callbacks */
++  gpointer                         user_data;
++  FpiSpiTransferCallbackTODV1_92_0 callback;
++
++  /* Data free function */
++  GDestroyNotify free_buffer_wr;
++  GDestroyNotify free_buffer_rd;
++
++  /* padding for future expansion */
++  TOD_PADDING (32, 0);
++};
+diff -x '.git*' -urN old/tests/tod-drivers/base-fpi-usb.h new/tests/tod-drivers/base-fpi-usb.h
+--- old/tests/tod-drivers/base-fpi-usb.h	1970-01-01 00:00:00.000000000 +0000
++++ new/tests/tod-drivers/base-fpi-usb.h	2023-09-12 03:33:34.483124034 +0000
+@@ -0,0 +1,80 @@
++/*
++ * FpDevice - A fingerprint reader device
++ * Copyright (C) 2021 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#pragma once
++
++#include <gusb.h>
++
++#include "base-fpi-device.h"
++
++typedef struct _FpiUsbTransferTODV1_90_1 FpiUsbTransferTODV1_90_1;
++typedef struct _FpiSsm                   FpiSsm;
++
++typedef void (*FpiUsbTransferCallbackTODV1_90_1)(FpiUsbTransferTODV1_90_1 *transfer,
++                                                 FpDevice                 *dev,
++                                                 gpointer                  user_data,
++                                                 GError                   *error);
++
++typedef enum  {
++  FP_TRANSFER_TODV1_90_1_NONE = -1,
++  FP_TRANSFER_TODV1_90_1_CONTROL = 0,
++  FP_TRANSFER_TODV1_90_1_BULK = 2,
++  FP_TRANSFER_TODV1_90_1_INTERRUPT = 3,
++} FpiTransferTypeTODV1_90_3;
++
++struct _FpiUsbTransferTODV1_90_1
++{
++  /*< public >*/
++  FpDevice *device;
++
++  FpiSsm   *ssm;
++
++  gssize    length;
++  gssize    actual_length;
++
++  guchar   *buffer;
++
++  /*< private >*/
++  guint ref_count;
++
++  /* USB Transfer information */
++  FpiTransferTypeTODV1_90_3 type;
++  guint8                    endpoint;
++
++  /* Control Transfer options */
++  GUsbDeviceDirection   direction;
++  GUsbDeviceRequestType request_type;
++  GUsbDeviceRecipient   recipient;
++  guint8                request;
++  guint16               value;
++  guint16               idx;
++
++  /* Flags */
++  gboolean short_is_error;
++
++  /* Callbacks */
++  gpointer                         user_data;
++  FpiUsbTransferCallbackTODV1_90_1 callback;
++
++  /* Data free function */
++  GDestroyNotify free_buffer;
++
++  /* padding for future expansion */
++  TOD_PADDING (32, 0);
++};

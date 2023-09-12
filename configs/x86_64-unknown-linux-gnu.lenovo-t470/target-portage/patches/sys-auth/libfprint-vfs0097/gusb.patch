@@ -1,0 +1,12 @@
+diff -urN old/meson.build new/meson.build
+--- old/meson.build	2023-09-12 05:23:53.262201171 +0000
++++ new/meson.build	2023-09-12 05:27:14.358248227 +0000
+@@ -20,6 +20,8 @@
+ 
+ vfs0090_deps += dependency('pixman-1')
+ 
++vfs0090_deps += dependency('gusb')
++
+ shared_module('fprint-tod-vfs009x',
+     sources: [
+         'vfs0090.c',

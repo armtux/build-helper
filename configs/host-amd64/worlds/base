@@ -68,6 +68,7 @@ net-libs/nodejs
 sys-apps/dbus
 sys-apps/iucode_tool
 sys-apps/hwdata
+sys-auth/polkit
 sys-devel/bc
 sys-devel/clang
 sys-devel/crossdev

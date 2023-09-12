@@ -11,6 +11,9 @@ app-portage/cpuid2cpuflags
 app-shells/bash-completion
 dev-vcs/git
 gui-apps/foot
+gui-apps/swaybg
+gui-apps/swayidle
+gui-apps/swaylock
 gui-apps/wofi
 gui-wm/sway
 media-fonts/noto
@@ -31,6 +34,9 @@ sys-apps/locale-gen
 sys-apps/pciutils
 sys-apps/smartmontools
 sys-apps/usbutils
+sys-auth/fprintd
+sys-auth/libfprint
+sys-auth/libfprint-vfs0097
 sys-auth/seatd
 sys-firmware/intel-microcode
 sys-fs/cryptsetup

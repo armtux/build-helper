@@ -1,16 +1,16 @@
 diff -urN old/Makefile.in new/Makefile.in
---- old/Makefile.in	2023-06-30 22:15:37.000000000 +0000
-+++ new/Makefile.in	2023-08-10 11:31:02.270000000 +0000
-@@ -3649,7 +3649,7 @@
- @CLIENT_TRUE@					client/player.h client/player.c
+--- old/Makefile.in	2023-08-24 17:03:40.000000000 +0000
++++ new/Makefile.in	2023-09-12 06:16:09.634688932 +0000
+@@ -3656,7 +3656,7 @@
  
- @CLIENT_TRUE@client_bluetoothctl_LDADD = gdbus/libgdbus-internal.la src/libshared-glib.la \
--@CLIENT_TRUE@				$(GLIB_LIBS) $(DBUS_LIBS) -lreadline
-+@CLIENT_TRUE@				$(GLIB_LIBS) $(DBUS_LIBS) -lreadline -ltinfo
+ @CLIENT_TRUE@client_bluetoothctl_LDADD = lib/libbluetooth-internal.la \
+ @CLIENT_TRUE@			gdbus/libgdbus-internal.la src/libshared-glib.la \
+-@CLIENT_TRUE@			$(GLIB_LIBS) $(DBUS_LIBS) -lreadline
++@CLIENT_TRUE@			$(GLIB_LIBS) $(DBUS_LIBS) -lreadline -ltinfo
  
  @ZSH_COMPLETIONS_TRUE@zshcompletiondir = $(ZSH_COMPLETIONDIR)
  @ZSH_COMPLETIONS_TRUE@dist_zshcompletion_DATA = completion/zsh/_bluetoothctl
-@@ -3928,7 +3928,7 @@
+@@ -3935,7 +3935,7 @@
  
  @DEPRECATED_TRUE@@MESH_TRUE@@TOOLS_TRUE@tools_meshctl_LDADD = gdbus/libgdbus-internal.la src/libshared-glib.la \
  @DEPRECATED_TRUE@@MESH_TRUE@@TOOLS_TRUE@				lib/libbluetooth-internal.la \
@@ -19,7 +19,7 @@ diff -urN old/Makefile.in new/Makefile.in
  
  @MESH_TRUE@@TOOLS_TRUE@tools_mesh_cfgclient_SOURCES = tools/mesh-cfgclient.c \
  @MESH_TRUE@@TOOLS_TRUE@				tools/mesh/model.h tools/mesh/config-model.h \
-@@ -3942,7 +3942,7 @@
+@@ -3949,7 +3949,7 @@
  @MESH_TRUE@@TOOLS_TRUE@				mesh/crypto.h mesh/crypto.c
  
  @MESH_TRUE@@TOOLS_TRUE@tools_mesh_cfgclient_LDADD = lib/libbluetooth-internal.la src/libshared-ell.la \
@@ -28,7 +28,7 @@ diff -urN old/Makefile.in new/Makefile.in
  
  @MESH_TRUE@@TOOLS_TRUE@tools_mesh_cfgtest_SOURCES = tools/mesh-cfgtest.c
  @MESH_TRUE@@TOOLS_TRUE@tools_mesh_cfgtest_LDADD = lib/libbluetooth-internal.la src/libshared-ell.la \
-@@ -3999,7 +3999,7 @@
+@@ -4006,7 +4006,7 @@
  @READLINE_TRUE@						tools/obex-client-tool.c
  
  @READLINE_TRUE@tools_obex_client_tool_LDADD = lib/libbluetooth-internal.la \
@@ -37,7 +37,7 @@ diff -urN old/Makefile.in new/Makefile.in
  
  @READLINE_TRUE@tools_obex_server_tool_SOURCES = $(gobex_sources) $(btio_sources) \
  @READLINE_TRUE@						tools/obex-server-tool.c
-@@ -4012,15 +4012,15 @@
+@@ -4019,17 +4019,17 @@
  
  @READLINE_TRUE@tools_bluetooth_player_LDADD = gdbus/libgdbus-internal.la \
  @READLINE_TRUE@				src/libshared-glib.la \
@@ -49,14 +49,16 @@ diff -urN old/Makefile.in new/Makefile.in
 -@READLINE_TRUE@			$(GLIB_LIBS) $(DBUS_LIBS) -lreadline
 +@READLINE_TRUE@			$(GLIB_LIBS) $(DBUS_LIBS) -lreadline -ltinfo
  
- @READLINE_TRUE@tools_btmgmt_SOURCES = tools/btmgmt.c src/uuid-helper.c client/display.c
+ @READLINE_TRUE@tools_btmgmt_SOURCES = tools/btmgmt.c src/uuid-helper.c client/display.c \
+ @READLINE_TRUE@			client/mgmt.c
+ 
  @READLINE_TRUE@tools_btmgmt_LDADD = lib/libbluetooth-internal.la src/libshared-mainloop.la \
 -@READLINE_TRUE@				-lreadline
 +@READLINE_TRUE@				-lreadline -ltinfo
  
  @DEPRECATED_TRUE@@READLINE_TRUE@attrib_gatttool_SOURCES = attrib/gatttool.c attrib/att.c attrib/gatt.c \
  @DEPRECATED_TRUE@@READLINE_TRUE@				attrib/gattrib.c btio/btio.c \
-@@ -4029,7 +4029,7 @@
+@@ -4038,7 +4038,7 @@
  @DEPRECATED_TRUE@@READLINE_TRUE@				client/display.h
  
  @DEPRECATED_TRUE@@READLINE_TRUE@attrib_gatttool_LDADD = lib/libbluetooth-internal.la \
@@ -65,7 +67,7 @@ diff -urN old/Makefile.in new/Makefile.in
  
  @CUPS_TRUE@cupsdir = $(libdir)/cups/backend
  @CUPS_TRUE@profiles_cups_bluetooth_SOURCES = profiles/cups/main.c \
-@@ -4049,7 +4049,7 @@
+@@ -4058,7 +4058,7 @@
  @BTPCLIENT_TRUE@tools_btpclient_DEPENDENCIES = lib/libbluetooth-internal.la $(ell_dependencies)
  @BTPCLIENT_TRUE@tools_btpclientctl_SOURCES = tools/btpclientctl.c client/display.c
  @BTPCLIENT_TRUE@tools_btpclientctl_LDADD = src/libshared-mainloop.la src/libshared-glib.la \
@@ -75,18 +77,18 @@ diff -urN old/Makefile.in new/Makefile.in
  
  # SPDX-License-Identifier: GPL-2.0
 diff -urN old/Makefile.tools new/Makefile.tools
---- old/Makefile.tools	2023-06-30 08:10:19.000000000 +0000
-+++ new/Makefile.tools	2023-08-10 11:30:58.130000000 +0000
-@@ -14,7 +14,7 @@
- 					client/admin.h client/admin.c \
- 					client/player.h client/player.c
- client_bluetoothctl_LDADD = gdbus/libgdbus-internal.la src/libshared-glib.la \
--				$(GLIB_LIBS) $(DBUS_LIBS) -lreadline
-+				$(GLIB_LIBS) $(DBUS_LIBS) -lreadline -ltinfo
+--- old/Makefile.tools	2023-08-24 17:02:39.000000000 +0000
++++ new/Makefile.tools	2023-09-12 06:16:57.392008341 +0000
+@@ -16,7 +16,7 @@
+ 					client/mgmt.h client/mgmt.c
+ client_bluetoothctl_LDADD = lib/libbluetooth-internal.la \
+ 			gdbus/libgdbus-internal.la src/libshared-glib.la \
+-			$(GLIB_LIBS) $(DBUS_LIBS) -lreadline
++			$(GLIB_LIBS) $(DBUS_LIBS) -lreadline -ltinfo
  endif
  
  if ZSH_COMPLETIONS
-@@ -373,7 +373,7 @@
+@@ -377,7 +377,7 @@
  				tools/mesh-gatt/onoff-model.c
  tools_meshctl_LDADD = gdbus/libgdbus-internal.la src/libshared-glib.la \
  				lib/libbluetooth-internal.la \
@@ -95,7 +97,7 @@ diff -urN old/Makefile.tools new/Makefile.tools
  
  EXTRA_DIST += tools/mesh-gatt/local_node.json tools/mesh-gatt/prov_db.json
  endif
-@@ -392,7 +392,7 @@
+@@ -396,7 +396,7 @@
  				mesh/crypto.h mesh/crypto.c
  
  tools_mesh_cfgclient_LDADD = lib/libbluetooth-internal.la src/libshared-ell.la \
@@ -104,7 +106,7 @@ diff -urN old/Makefile.tools new/Makefile.tools
  
  bin_PROGRAMS +=  tools/mesh-cfgtest
  
-@@ -488,7 +488,7 @@
+@@ -494,7 +494,7 @@
  tools_obex_client_tool_SOURCES = $(gobex_sources) $(btio_sources) \
  						tools/obex-client-tool.c
  tools_obex_client_tool_LDADD = lib/libbluetooth-internal.la \
@@ -113,7 +115,7 @@ diff -urN old/Makefile.tools new/Makefile.tools
  
  tools_obex_server_tool_SOURCES = $(gobex_sources) $(btio_sources) \
  						tools/obex-server-tool.c
-@@ -499,15 +499,15 @@
+@@ -505,16 +505,16 @@
  				client/player.c
  tools_bluetooth_player_LDADD = gdbus/libgdbus-internal.la \
  				src/libshared-glib.la \
@@ -125,14 +127,15 @@ diff -urN old/Makefile.tools new/Makefile.tools
 -			$(GLIB_LIBS) $(DBUS_LIBS) -lreadline
 +			$(GLIB_LIBS) $(DBUS_LIBS) -lreadline -ltinfo
  
- tools_btmgmt_SOURCES = tools/btmgmt.c src/uuid-helper.c client/display.c
+ tools_btmgmt_SOURCES = tools/btmgmt.c src/uuid-helper.c client/display.c \
+ 			client/mgmt.c
  tools_btmgmt_LDADD = lib/libbluetooth-internal.la src/libshared-mainloop.la \
 -				-lreadline
 +				-lreadline -ltinfo
  if DEPRECATED
  noinst_PROGRAMS += attrib/gatttool
  
-@@ -517,7 +517,7 @@
+@@ -524,7 +524,7 @@
  				attrib/utils.c src/log.c client/display.c \
  				client/display.h
  attrib_gatttool_LDADD = lib/libbluetooth-internal.la \
@@ -141,7 +144,7 @@ diff -urN old/Makefile.tools new/Makefile.tools
  
  endif
  endif
-@@ -563,5 +563,5 @@
+@@ -570,5 +570,5 @@
  
  tools_btpclientctl_SOURCES = tools/btpclientctl.c client/display.c
  tools_btpclientctl_LDADD = src/libshared-mainloop.la src/libshared-glib.la \

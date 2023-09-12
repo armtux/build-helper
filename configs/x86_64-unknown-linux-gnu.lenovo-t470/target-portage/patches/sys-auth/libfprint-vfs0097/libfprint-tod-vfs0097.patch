@@ -1,0 +1,58 @@
+diff -urN old/vfs0090.c new/vfs0090.c
+--- old/vfs0090.c	2023-09-12 03:34:22.040433680 +0000
++++ new/vfs0090.c	2023-09-12 03:47:54.481395613 +0000
+@@ -1629,7 +1629,7 @@
+ 
+   if (!error)
+     {
+-      fpi_ssm_next_state_delayed (ssm, 200, NULL);
++      fpi_ssm_next_state_delayed (ssm, 200);
+     }
+   else
+     {
+@@ -2951,7 +2951,7 @@
+   switch (fpi_ssm_get_cur_state (ssm))
+     {
+     case REACTIVATE_STATE_WAIT:
+-      fpi_ssm_next_state_delayed (ssm, 100, NULL);
++      fpi_ssm_next_state_delayed (ssm, 100);
+       break;
+ 
+     case REACTIVATE_STATE_DEACTIVATE:
+diff -urN old/vfs0090.h new/vfs0090.h
+--- old/vfs0090.h	2023-09-12 03:34:22.043767059 +0000
++++ new/vfs0090.h	2023-09-12 03:49:41.826162134 +0000
+@@ -343,10 +343,11 @@
+     .rsp_length = 68,
+   },
+   {
++    .weak_match = TRUE,
+     .msg = INIT_SEQUENCE_MSG3,
+     .msg_length = G_N_ELEMENTS (INIT_SEQUENCE_MSG3),
+     .rsp = NULL,
+-    .rsp_length = 84,
++    .rsp_length = 108,
+   },
+   {
+     .msg = INIT_SEQUENCE_MSG4,
+@@ -737,16 +738,18 @@
+     .rsp_length = G_N_ELEMENTS (ACTIVATE_SEQUENCE_RSP345),
+   },
+   {
++    .weak_match = TRUE,
+     .msg = ACTIVATE_SEQUENCE_MSG67,
+     .msg_length = G_N_ELEMENTS (ACTIVATE_SEQUENCE_MSG67),
+     .rsp = NULL,
+-    .rsp_length = 84,
++    .rsp_length = 108,
+   },
+   {
++    .weak_match = TRUE,
+     .msg = ACTIVATE_SEQUENCE_MSG67,
+     .msg_length = G_N_ELEMENTS (ACTIVATE_SEQUENCE_MSG67),
+     .rsp = NULL,
+-    .rsp_length = 84,
++    .rsp_length = 108,
+   },
+   {
+     .msg = SCAN_MATRIX,

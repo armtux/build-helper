@@ -8,6 +8,7 @@ app-pda/libimobiledevice
 app-pda/usbmuxd
 app-portage/cpuid2cpuflags
 app-shells/bash-completion
+dev-lang/go
 dev-vcs/git
 gui-apps/foot
 gui-wm/sway
