@@ -1,0 +1,5 @@
+cross-x86_64-unknown-linux-musl/binutils cross-x86_64-unknown-linux-musl/binutils.conf
+cross-x86_64-unknown-linux-musl/gcc cross-x86_64-unknown-linux-musl/gcc.conf
+cross-x86_64-unknown-linux-musl/linux-headers cross-x86_64-unknown-linux-musl/linux-headers.conf
+cross-x86_64-unknown-linux-musl/musl cross-x86_64-unknown-linux-musl/musl.conf
+cross-x86_64-unknown-linux-musl/gdb cross-x86_64-unknown-linux-musl/gdb.conf

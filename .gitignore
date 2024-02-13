@@ -1,6 +1,9 @@
 # ignore local directories containing logs, downloaded sources and generated files
 /builds/
 /configs/host-amd64/target-portage/._cfg*
+/configs/host-amd64/target-portage/gnupg/
+/configs/host-amd64-v3-slim/target-portage/._cfg*
+/configs/host-amd64-v3-slim/target-portage/gnupg/
 /configs/*/target-portage/package.use/00cpu-flags-native
 /distfiles/
 /history/

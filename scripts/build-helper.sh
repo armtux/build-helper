@@ -104,12 +104,12 @@ export BUILD_PKGS="${BUILD_HELPER_TREE}/packages/${CROSSDEV_TARGET}.${BUILD_NAME
 # first target cpu architecture
 export BUILD_ARCH="`cat ${BUILD_CONF}/build-arch`"
 # build timestamp
-export BUILD_DATE="`date -u +%Y%m%dT%H%M%SZ`"
+export BUILD_DATE="$(date -u +%Y%m%dT%H%M%SZ)"
 # path to first target final build
 export BUILD_DEST="${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}.${BUILD_DATE}"
 # path to finished work's squashfs backup
 #export BUILD_HIST="${BUILD_HIST:-`ls -1 ${BUILD_HELPER_TREE}/builds/${CROSSDEV_TARGET}.${BUILD_NAME}*/dev.sqfs | tail -n 1`}"
-export BUILD_HIST="${BUILD_HIST:-`[ -d ${BUILD_HELPER_TREE}/history ] && [ "$(ls -1 ${BUILD_HELPER_TREE}/history | wc -l)" -gt "0" ] && ls -1 ${BUILD_HELPER_TREE}/history/* | tail -n 1`}"
+export BUILD_HIST="${BUILD_HIST:-`[ -d ${BUILD_HELPER_TREE}/history ] && [ "$(ls -1 ${BUILD_HELPER_TREE}/history | wc -l)" -gt "0" ] && ls -1 ${BUILD_HELPER_TREE}/history | tail -n 1`}"
 # history archive format
 export HIST_TYPE="${HIST_TYPE:-squashfs}"
 #export HIST_TYPE="${HIST_TYPE:-files}"
@@ -288,7 +288,10 @@ build_helper_mounts() {
 # TODO: allow regular mount/filesystem rather than squashfs/tmpfs/overlayfs
 # NOTE: done?
 # mount build-helper directory structure at expected path with chosen mount type
-mkdir "${MNT_PATH}"
+if [ ! -e "${MNT_PATH}" ]
+then
+	mkdir "${MNT_PATH}"
+fi
 if [ "${MNT_TYPE}" = "bind" ] && [ ! -e "${BUILD_HELPER_TREE}/work/${BUILD_DATE}" ]
 then
 	mkdir -p "${BUILD_HELPER_TREE}/work/${BUILD_DATE}"
@@ -301,6 +304,10 @@ cd "${MNT_PATH}"
 mkdir s w u m
 # fetch and verify initial stage3 tarball if path to prior work to update not defined, otherwise mount prior work
 #if [ "${HIST_TYPE}" = "files" ] && [ -e "${BUILD_HELPER_TREE}/history" ]
+if [ ! $(echo "${BUILD_HIST}" | grep -q '/') ]
+then
+	export BUILD_HIST="${BUILD_HELPER_TREE}/history/${BUILD_HIST}"
+fi
 if [ "${HIST_TYPE}" = "files" ] && [ "${BUILD_HIST}" != "" ] && [ -d "${BUILD_HIST}" ]
 then
 	#mount -o ro,bind "${BUILD_HELPER_TREE}/history/`ls -1 ${BUILD_HELPER_TREE}/history | tail -n 1`" s
@@ -309,7 +316,8 @@ then
 elif [ "${BUILD_HIST}" = "" ]
 then
 	export FIRST_BUILD="yes"
-	TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1`"
+	#TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | grep xz | cut -d ' ' -f 1`"
+	TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-nomultilib-openrc.txt | grep xz | cut -d ' ' -f 1`"
 	curl -O ${TARBALL_LINK}.asc -O ${TARBALL_LINK}.DIGESTS -O ${TARBALL_LINK}
 	#curl -O ${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1` -O ${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1`.DIGESTS.asc
 	if [ -e /usr/share/openpgp-keys/gentoo-release.asc ]

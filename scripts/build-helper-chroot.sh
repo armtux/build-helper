@@ -149,7 +149,12 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	# set CPU_FLAGS_* for native host target
 	emerge -ukq app-portage/cpuid2cpuflags
-	echo "*/* $(cpuid2cpuflags)" > /etc/portage/package.use/00cpu-flags-native
+	if [ -e "${HOST_CONF}/cpuflags" ]
+	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		echo "*/* $(cpuid2cpuflags)" > /etc/portage/package.use/00cpu-flags-native
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+	fi
 	export VIDEO_CARDS="${VIDEO_CARDS_NATIVE}"
 	# make sure portage is up-to-date before continuing
 	# TODO: skip portage update if new python needed? (done?)
@@ -169,11 +174,16 @@ then
 		#sed -i -e 's/-libressl/libressl/' /etc/portage/make.conf
 		# make sure we don't have crossdev targets in world before they exist
 		sed -i -e 's/^cross-.*$//' /var/lib/portage/world
+		# set locale in case the build system is glibc
+		echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
 		# build host toolchain
-		emerge -1kq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/musl
+		#emerge -1kq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/musl
+		emerge -1kq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/glibc
 		# choose latest toolchain versions
-		eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-gentoo-linux-musl | tail -n 1`
-		eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-gentoo-linux-musl/binutils-bin | grep -v lib | tail -n 1`
+		#eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-gentoo-linux-musl | tail -n 1`
+		#eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-gentoo-linux-musl/binutils-bin | grep -v lib | tail -n 1`
+		eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-pc-linux-gnu | tail -n 1`
+		eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-pc-linux-gnu/binutils-bin | grep -v lib | tail -n 1`
 		# re-source to apply eselect changes to current shell
 		source /etc/profile
 		# build perl and modules before the rest, to avoid build failures
@@ -190,10 +200,13 @@ then
 	else
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		# update host toolchain
-		emerge -1ukq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/musl
+		#emerge -1ukq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/musl
+		emerge -1ukq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/glibc
 		# choose latest toolchain versions
-		eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-gentoo-linux-musl | tail -n 1`
-		eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-gentoo-linux-musl/binutils-bin | grep -v lib | tail -n 1`
+		#eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-gentoo-linux-musl | tail -n 1`
+		#eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-gentoo-linux-musl/binutils-bin | grep -v lib | tail -n 1`
+		eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-pc-linux-gnu | tail -n 1`
+		eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-pc-linux-gnu/binutils-bin | grep -v lib | tail -n 1`
 		# re-source to apply eselect changes to current shell
 		source /etc/profile
 		# build perl and modules before the rest, to avoid build failures
@@ -225,8 +238,11 @@ then
 		emerge -uDNkq --with-bdeps=y @world
 		# revert avoiding rust cross-toolchains for rebuilding rust after crossdev targets are built
 		sed -i -e 's/^#I_KNOW_WHAT_I_AM_DOING_CROSS/I_KNOW_WHAT_I_AM_DOING_CROSS/' /etc/portage/make.conf
-		# choose latest rust version
-		eselect rust update
+		# choose latest rust version if rust is in world file
+		if [ "$(grep 'dev-lang/rust' ${HOST_CONF}/worlds/base)" = "dev-lang/rust" ]
+		then
+			eselect rust update
+		fi
 	fi
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	# re-source to apply eselect changes to current shell
@@ -257,21 +273,32 @@ then
 			ln -s /usr/${unique_target}.skeleton /usr/${unique_target}
 		fi
 		# make sure equivalent target toolchain symlinks to clang/llvm binaries are present
-		if [ ! -e /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-clang ]
+		if [ -e /usr/lib/llvm ] && [ ! -e /usr/lib/llvm/`ls -1v /usr/lib/llvm | tail -n 1`/bin/${unique_target}-clang ]
 		then
 			# TODO: replace symlink creation with solution using upstream tools
 			LLVM_HOST_VER="`ls -1v /usr/lib/llvm | tail -n 1`"
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp
-			ln -s x86_64-gentoo-linux-musl-llvm-config /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-llvm-config
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-${LLVM_HOST_VER}
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++-${LLVM_HOST_VER}
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl-${LLVM_HOST_VER}
-			ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp-${LLVM_HOST_VER}
-			#ln -s x86_64-gentoo-linux-musl-clang /usr/bin/${unique_target}-clang
-			#ln -s x86_64-gentoo-linux-musl-llvm-config /usr/bin/${unique_target}-llvm-config
+			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang
+			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++
+			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl
+			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp
+			#ln -s x86_64-gentoo-linux-musl-llvm-config /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-llvm-config
+			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-${LLVM_HOST_VER}
+			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++-${LLVM_HOST_VER}
+			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl-${LLVM_HOST_VER}
+			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp-${LLVM_HOST_VER}
+			##ln -s x86_64-gentoo-linux-musl-clang /usr/bin/${unique_target}-clang
+			##ln -s x86_64-gentoo-linux-musl-llvm-config /usr/bin/${unique_target}-llvm-config
+			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang
+			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++
+			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl
+			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp
+			ln -s x86_64-pc-linux-gnu-llvm-config /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-llvm-config
+			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-${LLVM_HOST_VER}
+			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++-${LLVM_HOST_VER}
+			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl-${LLVM_HOST_VER}
+			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp-${LLVM_HOST_VER}
+			#ln -s x86_64-pc-linux-gnu-clang /usr/bin/${unique_target}-clang
+			#ln -s x86_64-pc-linux-gnu-llvm-config /usr/bin/${unique_target}-llvm-config
 		fi
 		# locale-gen is usually not present for musl (host environment), but is needed if target toolchain is glibc
 		if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`" = "glibc" ]
@@ -284,13 +311,18 @@ then
 
 		# choose latest crossdev toolchain versions
 		eselect gcc set ${unique_target}-`ls -1v /usr/lib/gcc/${unique_target} | tail -n 1`
-		eselect binutils set ${unique_target}-`ls -1v /usr/x86_64-gentoo-linux-musl/${unique_target}/binutils-bin | grep -v lib | tail -n 1`
+		#eselect binutils set ${unique_target}-`ls -1v /usr/x86_64-gentoo-linux-musl/${unique_target}/binutils-bin | grep -v lib | tail -n 1`
+		eselect binutils set ${unique_target}-`ls -1v /usr/x86_64-pc-linux-gnu/${unique_target}/binutils-bin | grep -v lib | tail -n 1`
 
 		# use clang target --gcc-install-dir autodetection, don't rely on gentoo defaults
-		echo > /etc/clang/gentoo-gcc-install.cfg
+		if [ -e /etc/clang ]
+		then
+			echo > /etc/clang/gentoo-gcc-install.cfg
+		fi
 
 		# trigger rust rebuild below if rust cross-toolchain is currently missing for new crossdev targets
-		if [ ! -e /usr/lib/rust/lib/rustlib/`cat /etc/portage/env/dev-lang/rust | grep ":${unique_target}\"" | cut -d ':' -f2` ]
+		if [ "$(grep 'dev-lang/rust' ${HOST_CONF}/worlds/base)" = "dev-lang/rust" ] && \
+			[ ! -e /usr/lib/rust/lib/rustlib/`cat /etc/portage/env/dev-lang/rust | grep ":${unique_target}\"" | cut -d ':' -f2` ]
 		then
 			REBUILD_RUST="yes"
 			# install rust dependencies into crossdev target skeleton
@@ -462,7 +494,8 @@ if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	sed -i -e 's/^INSTALL_MASK/#INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
-	sed -i -e 's@^sys-devel/gcc@#sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+	#sed -i -e 's@^sys-devel/gcc@#sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+	sed -i -e 's@^INSTALL_MASK@#INSTALL_MASK@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/env/sys-devel/gcc
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
@@ -556,6 +589,13 @@ cat /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/ld.so.conf.d/* /usr/${CROSSDEV_TAR
 # copy system busybox configuration to crossdev target
 # TODO: only do this for embedded gentoo (done?)
 # TODO: support toybox in embedded gentoo
+if [ -e ${BUILD_CONF}/busybox-mini.config ]
+then
+		export BOX_CHOICE="busybox"
+elif [ -e ${BUILD_CONF}/toybox-mini.config ]
+then
+		export BOX_CHOICE="toybox"
+fi
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
@@ -563,7 +603,14 @@ then
 	then
 		mkdir -p /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps
 	fi
-	cp ${BUILD_CONF}/busybox.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
+
+	if [ -e ${BUILD_CONF}/busybox.config ]
+	then
+		cp ${BUILD_CONF}/busybox.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
+	elif [ -e ${BUILD_CONF}/toybox.config ]
+	then
+		cp ${BUILD_CONF}/toybox.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/toybox
+	fi
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
@@ -646,7 +693,8 @@ if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	sed -i -e 's/^#INSTALL_MASK/INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
-	sed -i -e 's@^#sys-devel/gcc@sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+	#sed -i -e 's@^#sys-devel/gcc@sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+	sed -i -e 's@^#INSTALL_MASK@INSTALL_MASK@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/env/sys-devel/gcc
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 #sed -i -e 's@^#sys-kernel/linux-headers@sys-kernel/linux-headers@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/profile/package.provided
@@ -714,7 +762,8 @@ if [ ! -e ../squashfs/dev ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir ../squashfs/{dev,home,media,mnt,opt,proc,sys}
-	cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/loop0 /dev/loop1 /dev/loop2 /dev/random /dev/urandom ../squashfs/dev/
+	#cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/loop0 /dev/loop1 /dev/loop2 /dev/random /dev/urandom ../squashfs/dev/
+	cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/random /dev/urandom ../squashfs/dev/
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
@@ -1023,43 +1072,55 @@ fi
 mkdir /tmp/busybox /tmp/busybox-mini
 # TODO: avoid letting errors pass (done?)
 #set +e
-if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox/busybox*.xpak | wc -l)" -gt "0" ]
+if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/${BOX_CHOICE}/${BOX_CHOICE}*.gpkg.tar | wc -l)" -gt "0" ]
 then
-	mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox/busybox*.xpak /tmp/busybox/
+	mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/${BOX_CHOICE}/${BOX_CHOICE}*.gpkg.tar /tmp/busybox/
 fi
-if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep busybox | wc -l)" -gt "0" ]
+if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep ${BOX_CHOICE} | wc -l)" -gt "1" ]
 then
-	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox-*
+	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/${BOX_CHOICE}-*
 fi
 #set -e
 # use minimal busybox configuration to build initramfs busybox
-cp ${BUILD_CONF}/busybox-mini.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
+cp ${BUILD_CONF}/${BOX_CHOICE}-mini.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/${BOX_CHOICE}
 CHROOT_RESUME_LINENO="$LINENO"
-BINPKG_COMPRESS="bzip2" USE="-make-symlinks -syslog -pam static savedconfig static-libs" ${CROSSDEV_TARGET}-emerge \
-	--root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} --sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1q busybox
+#BINPKG_COMPRESS="bzip2" \
+USE="-make-symlinks -syslog -pam static savedconfig static-libs" ${CROSSDEV_TARGET}-emerge \
+	--root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} --sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -1q --getbinpkg=n ${BOX_CHOICE}
 CHROOT_RESUME_LINENO="0"
 # move minimal busybox binpkg to temporary work directory
-mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/busybox/busybox*.xpak /tmp/busybox-mini/
+mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/${BOX_CHOICE}/${BOX_CHOICE}*.gpkg.tar /tmp/busybox-mini/
 # restore system busybox binpkg
 # TODO: avoid letting errors pass (done?)
 #set +e
 if [ "$(ls -1 /tmp/busybox | wc -l)" -gt "0" ]
 then
-	mv /tmp/busybox/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/
+	mv /tmp/busybox/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/${BOX_CHOICE}/
 fi
-if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep busybox | wc -l)" -gt "0" ]
+if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep ${BOX_CHOICE} | wc -l)" -gt "0" ]
 then
-	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox*
+	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/${BOX_CHOICE}*
 fi
 #set -e
 # extract minimal busybox binpkg and place static binary in initramfs
 cd /tmp/busybox-mini
-tar xjpf busybox*.xpak
-cp -a bin/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/bin/
+mkdir tmp
+cd tmp
+tar xpf ../${BOX_CHOICE}*.gpkg.tar
+cd ${BOX_CHOICE}*
+tar xpf image.tar.zst
+if [ "${BOX_CHOICE}" = "busybox" ]
+then
+	cp -a image/bin/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/bin/
+elif [ "${BOX_CHOICE}" = "toybox" ]
+then
+	cp -a image/usr/bin/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/bin/
+fi
 rm -rf /tmp/busybox*
 
-#
-cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/loop0 /dev/loop1 /dev/loop2 /dev/random /dev/urandom \
+# TODO: use initramfs_list
+#cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/loop0 /dev/loop1 /dev/loop2 /dev/random /dev/urandom \
+cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/random /dev/urandom \
 	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/dev/
 
 # build crossdev target kernel and install modules in final build directory
@@ -1177,7 +1238,7 @@ then
 	if [ "${BUILD_ARCH}" = "arm64" ]
 	then
 		cp arch/${BUILD_ARCH}/boot/dts/broadcom/*.dtb ../${BUILD_NAME}-${BUILD_DATE}/boot/
-		cp "arch/${BUILD_ARCH}/boot/Image" "../${BUILD_NAME}-${BUILD_DATE}/boot/kernel8.img"
+		cp "arch/${BUILD_ARCH}/boot/Image.gz" "../${BUILD_NAME}-${BUILD_DATE}/boot/kernel8.img"
 	else
 		cp arch/${BUILD_ARCH}/boot/dts/*.dtb ../${BUILD_NAME}-${BUILD_DATE}/boot/
 		cp "arch/${BUILD_ARCH}/boot/zImage" "../${BUILD_NAME}-${BUILD_DATE}/boot/kernel.img"
