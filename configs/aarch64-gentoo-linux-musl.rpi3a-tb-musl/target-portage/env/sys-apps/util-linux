@@ -1,0 +1,2 @@
+ABI="default"
+#EXTRA_ECONF="--disable-all-programs --disable-asciidoc --disable-bash-completion --without-systemdsystemunitdir --disable-poman --enable-libuuid --enable-libblkid --enable-libsmartcols --enable-libfdisk --enable-libmount"

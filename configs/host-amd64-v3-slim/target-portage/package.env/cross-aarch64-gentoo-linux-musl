@@ -1,0 +1,5 @@
+cross-aarch64-gentoo-linux-musl/linux-headers cross-aarch64-gentoo-linux-musl/linux-headers.conf
+cross-aarch64-gentoo-linux-musl/musl cross-aarch64-gentoo-linux-musl/musl.conf
+cross-aarch64-gentoo-linux-musl/binutils cross-aarch64-gentoo-linux-musl/binutils.conf
+cross-aarch64-gentoo-linux-musl/gcc cross-aarch64-gentoo-linux-musl/gcc.conf
+cross-aarch64-gentoo-linux-musl/gdb cross-aarch64-gentoo-linux-musl/gdb.conf

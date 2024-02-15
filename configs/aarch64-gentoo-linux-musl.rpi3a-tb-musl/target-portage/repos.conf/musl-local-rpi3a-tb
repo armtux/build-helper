@@ -1,0 +1,5 @@
+[musl-local-rpi3a-tb]
+location = /var/db/repos/portage-musl-rpi3a-tb
+priority = 10
+masters = gentoo
+auto-sync = no

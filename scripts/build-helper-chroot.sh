@@ -266,7 +266,7 @@ then
 			# recompile crossdev's gcc to enable openmp support
 			if ${unique_target}-gcc -v 2>&1 | grep -q disable-libgomp
 			then
-				emerge -1q cross-${unique_target}/gcc
+				emerge -1q --getbinpkg=n cross-${unique_target}/gcc
 			fi
 			mv /usr/${unique_target} /usr/${unique_target}.skeleton
 			# symlink skeleton directory to crossdev target toolchain location for the time being
@@ -892,6 +892,7 @@ if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mv ../squashfs/var/db/pkg ../squashfs.exclude/pkg.base
+	rm -rf ../squashfs/var/cache/edb
 else
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -a ../squashfs/var/db/pkg ../squashfs.exclude/pkg.base
@@ -1048,6 +1049,7 @@ fi
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
 then
 	mv ../squashfs.extra/var/db/pkg ../squashfs.exclude/pkg.extra
+	rm -rf ../squashfs.extra/var/cache/edb
 else
 	cp -a ../squashfs.extra/var/db/pkg ../squashfs.exclude/pkg.extra
 fi

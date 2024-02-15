@@ -11,6 +11,10 @@ app-portage/smart-live-rebuild
 app-text/ansifilter
 app-text/asciidoc
 app-text/po4a
+cross-aarch64-gentoo-linux-musl/binutils
+cross-aarch64-gentoo-linux-musl/gcc
+cross-aarch64-gentoo-linux-musl/linux-headers
+cross-aarch64-gentoo-linux-musl/musl
 cross-aarch64-unknown-linux-gnu/binutils
 cross-aarch64-unknown-linux-gnu/gcc
 cross-aarch64-unknown-linux-gnu/glibc
