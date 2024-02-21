@@ -1,0 +1,1 @@
+INSTALL_MASK="/usr/libexec /usr/lib/gcc/${CHOST}/*/include /usr/lib/gcc/${CHOST}/*/include-fixed /usr/lib/gcc/${CHOST}/*/plugin /usr/lib/gcc/${CHOST}/*/*.a /usr/lib/gcc/${CHOST}/*/*.la /usr/${CHOST} /usr/bin /usr/share"

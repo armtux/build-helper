@@ -1,0 +1,3 @@
+net-wireless/aircrack-ng -airdrop-ng -airgraph-ng
+net-libs/libpcap usb
+sys-apps/hwloc -pci

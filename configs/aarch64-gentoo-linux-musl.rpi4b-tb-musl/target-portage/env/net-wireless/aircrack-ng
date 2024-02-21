@@ -1,0 +1,4 @@
+EXTRA_ECONF="--with-libgcrypt-prefix=${ROOT} --with-libpcap-include=${ROOT}/usr/include --with-libpcap-lib=${ROOT}/usr/lib --with-sqlite3=${ROOT}/usr"
+export ETHTOOL="${ROOT}/usr/sbin/ethtool"
+#export LT_SYS_LIBRARY_PATH="${ROOT}/lib ${ROOT}/usr/lib"
+#export static_extpath="${ROOT}/lib ${ROOT}/usr/lib"

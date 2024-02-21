@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # ToyBox version: KCONFIG_VERSION
-# Sun Feb 18 16:47:52 2024
+# Tue Feb 13 01:28:07 2024
 #
 # CONFIG_TOYBOX_ON_ANDROID is not set
 CONFIG_TOYBOX_FORK=y
@@ -301,7 +301,7 @@ CONFIG_YES=y
 # CONFIG_FTPGET is not set
 # CONFIG_FTPPUT is not set
 CONFIG_HOST=y
-CONFIG_HTTPD=y
+# CONFIG_HTTPD is not set
 CONFIG_IFCONFIG=y
 CONFIG_MICROCOM=y
 CONFIG_NETCAT=y

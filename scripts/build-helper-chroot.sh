@@ -748,6 +748,8 @@ then
 fi
 
 # install baselayout binpkg files in final build directory first
+ROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} SYSROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
+PORTAGE_CONFIGROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} emaint binhost -f
 FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs --sysroot=../squashfs --config-root=../squashfs \
 	-1uDNKq --with-bdeps=y sys-apps/baselayout
 
@@ -1092,6 +1094,8 @@ USE="-make-symlinks -syslog -pam static savedconfig static-libs" ${CROSSDEV_TARG
 CHROOT_RESUME_LINENO="0"
 # move minimal busybox binpkg to temporary work directory
 mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/${BOX_CHOICE}/${BOX_CHOICE}*.gpkg.tar /tmp/busybox-mini/
+ROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} SYSROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
+PORTAGE_CONFIGROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} emaint binhost -f
 # restore system busybox binpkg
 # TODO: avoid letting errors pass (done?)
 #set +e

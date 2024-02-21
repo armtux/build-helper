@@ -1,0 +1,37 @@
+dir /bin 755 0 0
+dir /dev 755 0 0
+dir /mnt 755 0 0
+dir /proc 755 0 0
+dir /sys 755 0 0
+dir /lib 755 0 0
+dir /usr 755 0 0
+dir /usr/lib 755 0 0
+
+file /usr/lib/libc.so /usr/aarch64-gentoo-linux-musl.rpi4b-tb-musl/usr/lib/libc.so 755 0 0
+file /lib/ld-musl-aarch64.so.1 /usr/aarch64-gentoo-linux-musl.rpi4b-tb-musl/lib/ld-musl-aarch64.so.1 755 0 0
+file /bin/toybox /usr/aarch64-gentoo-linux-musl.rpi4b-tb-musl/usr/src/initramfs/bin/toybox 755 0 0
+file /init /usr/aarch64-gentoo-linux-musl.rpi4b-tb-musl/usr/src/initramfs/init 755 0 0
+file /base /usr/aarch64-gentoo-linux-musl.rpi4b-tb-musl/usr/src/initramfs/base 640 0 0
+file /extra /usr/aarch64-gentoo-linux-musl.rpi4b-tb-musl/usr/src/initramfs/extra 640 0 0
+
+slink /bin/mount /bin/toybox 777 0 0
+slink /bin/cat /bin/toybox 777 0 0
+slink /bin/grep /bin/toybox 777 0 0
+slink /bin/tr /bin/toybox 777 0 0
+slink /bin/umount /bin/toybox 777 0 0
+slink /bin/sleep /bin/toybox 777 0 0
+slink /bin/mkdir /bin/toybox 777 0 0
+slink /bin/cp /bin/toybox 777 0 0
+slink /bin/ln /bin/toybox 777 0 0
+slink /bin/switch_root /bin/toybox 777 0 0
+slink /bin/exec /bin/toybox 777 0 0
+
+nod /dev/console 0600 0 0 c 5 1
+nod /dev/loop0 0660 0 6 b 7 0
+nod /dev/loop1 0660 0 6 b 7 1
+nod /dev/loop2 0660 0 6 b 7 2
+nod /dev/null 0666 0 0 c 1 3
+nod /dev/random 0666 0 0 c 1 8
+nod /dev/tty 0666 0 5 c 5 0
+nod /dev/tty1 0600 0 5 c 4 1
+nod /dev/urandom 0666 0 0 c 1 9

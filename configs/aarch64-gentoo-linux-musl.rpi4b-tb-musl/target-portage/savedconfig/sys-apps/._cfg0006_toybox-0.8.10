@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # ToyBox version: KCONFIG_VERSION
-# Sun Feb 18 16:47:52 2024
+# Mon Feb 12 21:15:51 2024
 #
 # CONFIG_TOYBOX_ON_ANDROID is not set
 CONFIG_TOYBOX_FORK=y
@@ -114,8 +114,8 @@ CONFIG_XARGS=y
 # CONFIG_DHCP6 is not set
 # CONFIG_DHCPD is not set
 # CONFIG_DEBUG_DHCP is not set
-CONFIG_DIFF=y
-CONFIG_DUMPLEASES=y
+# CONFIG_DIFF is not set
+# CONFIG_DUMPLEASES is not set
 # CONFIG_EXPR is not set
 # CONFIG_FDISK is not set
 # CONFIG_FOLD is not set
@@ -137,7 +137,7 @@ CONFIG_INIT=y
 CONFIG_IP=y
 # CONFIG_IPCRM is not set
 # CONFIG_IPCS is not set
-CONFIG_KLOGD=y
+# CONFIG_KLOGD is not set
 # CONFIG_KLOGD_SOURCE_RING_BUFFER is not set
 # CONFIG_LAST is not set
 CONFIG_LSOF=y
@@ -180,7 +180,7 @@ CONFIG_TRACEROUTE=y
 # CONFIG_USERADD is not set
 # CONFIG_USERDEL is not set
 CONFIG_VI=y
-CONFIG_XZCAT=y
+# CONFIG_XZCAT is not set
 
 #
 # Other commands
@@ -194,8 +194,8 @@ CONFIG_BLKDISCARD=y
 CONFIG_BLKID=y
 CONFIG_FSTYPE=y
 CONFIG_BLOCKDEV=y
-CONFIG_BUNZIP2=y
-CONFIG_BZCAT=y
+# CONFIG_BUNZIP2 is not set
+# CONFIG_BZCAT is not set
 # CONFIG_CHCON is not set
 CONFIG_CHROOT=y
 CONFIG_CHRT=y
@@ -301,7 +301,7 @@ CONFIG_YES=y
 # CONFIG_FTPGET is not set
 # CONFIG_FTPPUT is not set
 CONFIG_HOST=y
-CONFIG_HTTPD=y
+# CONFIG_HTTPD is not set
 CONFIG_IFCONFIG=y
 CONFIG_MICROCOM=y
 CONFIG_NETCAT=y
@@ -317,8 +317,8 @@ CONFIG_TUNCTL=y
 # Linux Standard Base commands
 #
 CONFIG_DMESG=y
-CONFIG_GZIP=y
-CONFIG_GUNZIP=y
+# CONFIG_GZIP is not set
+# CONFIG_GUNZIP is not set
 CONFIG_ZCAT=y
 CONFIG_HOSTNAME=y
 CONFIG_DNSDOMAINNAME=y
