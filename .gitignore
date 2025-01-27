@@ -2,9 +2,10 @@
 /builds/
 /configs/host-amd64/target-portage/._cfg*
 /configs/host-amd64/target-portage/gnupg/
-/configs/host-amd64-v3-slim/target-portage/._cfg*
-/configs/host-amd64-v3-slim/target-portage/gnupg/
+/configs/archived/host-amd64-v3-slim/target-portage/._cfg*
+/configs/archived/host-amd64-v3-slim/target-portage/gnupg/
 /configs/*/target-portage/package.use/00cpu-flags-native
+/configs/archived/*/target-portage/package.use/00cpu-flags-native
 /distfiles/
 /history/
 /logs/

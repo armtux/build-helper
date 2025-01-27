@@ -1,0 +1,3 @@
+dev-libs/libunistring
+net-dns/libidn2
+net-libs/nghttp2

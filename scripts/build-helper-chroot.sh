@@ -72,7 +72,8 @@ resume_mode() {
 					CHROOT_RESUME_LASTNO="$2"
 				fi
 
-				CHROOT_RESUME_DATE="$(date -Iseconds)"
+				#CHROOT_RESUME_DATE="$(date -Iseconds)"
+				CHROOT_RESUME_DATE="$(date -u +%Y%m%dT%H%M%SZ)"
 				BUILD_HELPER_CHROOT_SOURCE="/tmp/build-helper-chroot-resume-${CHROOT_RESUME_DATE}.sh"
 
 				sed -n "1,${CHROOT_RESUME_TOP_END}p" $3 >> ${BUILD_HELPER_CHROOT_SOURCE}
@@ -139,7 +140,7 @@ then
 		mv /etc/portage/gentoo.conf.backup /etc/portage/repos.conf/gentoo.conf
 		# backup ::gentoo mirror snapshot, then sync with git
 		mkdir /var/db/repos/gentoo.webrsync
-		mv /var/db/repos/gentoo/* /var/db/repos/gentoo/.editorconfig /var/db/repos/gentoo.webrsync/
+		mv /var/db/repos/gentoo/* /var/db/repos/gentoo.webrsync/
 		emerge --sync
 	# sync build history repositories using git
 	else
@@ -177,13 +178,13 @@ then
 		# set locale in case the build system is glibc
 		echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
 		# build host toolchain
-		#emerge -1kq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/musl
-		emerge -1kq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/glibc
+		emerge -1kq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/musl
+		#emerge -1kq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/glibc
 		# choose latest toolchain versions
-		#eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-gentoo-linux-musl | tail -n 1`
-		#eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-gentoo-linux-musl/binutils-bin | grep -v lib | tail -n 1`
-		eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-pc-linux-gnu | tail -n 1`
-		eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-pc-linux-gnu/binutils-bin | grep -v lib | tail -n 1`
+		eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-pc-linux-musl | tail -n 1`
+		eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-pc-linux-musl/binutils-bin | grep -v lib | tail -n 1`
+		#eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-pc-linux-gnu | tail -n 1`
+		#eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-pc-linux-gnu/binutils-bin | grep -v lib | tail -n 1`
 		# re-source to apply eselect changes to current shell
 		source /etc/profile
 		# build perl and modules before the rest, to avoid build failures
@@ -200,13 +201,13 @@ then
 	else
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		# update host toolchain
-		#emerge -1ukq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/musl
-		emerge -1ukq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/glibc
+		emerge -1ukq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/musl
+		#emerge -1ukq sys-kernel/linux-headers sys-devel/binutils sys-devel/gcc sys-libs/glibc
 		# choose latest toolchain versions
-		#eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-gentoo-linux-musl | tail -n 1`
-		#eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-gentoo-linux-musl/binutils-bin | grep -v lib | tail -n 1`
-		eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-pc-linux-gnu | tail -n 1`
-		eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-pc-linux-gnu/binutils-bin | grep -v lib | tail -n 1`
+		eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-pc-linux-musl | tail -n 1`
+		eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-pc-linux-musl/binutils-bin | grep -v lib | tail -n 1`
+		#eselect gcc set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/lib/gcc/x86_64-pc-linux-gnu | tail -n 1`
+		#eselect binutils set `grep -e '^CHOST' /etc/portage/make.conf | sed -e 's/CHOST="//' -e 's/"//'`-`ls -1v /usr/x86_64-pc-linux-gnu/binutils-bin | grep -v lib | tail -n 1`
 		# re-source to apply eselect changes to current shell
 		source /etc/profile
 		# build perl and modules before the rest, to avoid build failures
@@ -261,6 +262,14 @@ then
 			#mkdir -p /usr/${unique_target}/usr/lib /usr/${unique_target}/lib
 			#ln -s lib /usr/${unique_target}/lib64
 			#ln -s lib /usr/${unique_target}/usr/lib64
+			mkdir -p /usr/${unique_target}/usr/lib
+			ln -s lib /usr/${unique_target}/usr/lib64
+			ln -s usr/lib /usr/${unique_target}/lib
+			ln -s usr/lib /usr/${unique_target}/lib64
+			mkdir /usr/${unique_target}/usr/bin
+			ln -s bin /usr/${unique_target}/usr/sbin
+			ln -s usr/bin /usr/${unique_target}/bin
+			ln -s usr/bin /usr/${unique_target}/sbin
 			# run crossdev and save result as a skeleton for all targets using the same toolchain
 			crossdev -P -k -t ${unique_target}
 			# recompile crossdev's gcc to enable openmp support
@@ -277,28 +286,29 @@ then
 		then
 			# TODO: replace symlink creation with solution using upstream tools
 			LLVM_HOST_VER="`ls -1v /usr/lib/llvm | tail -n 1`"
-			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang
-			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++
-			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl
-			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp
-			#ln -s x86_64-gentoo-linux-musl-llvm-config /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-llvm-config
-			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-${LLVM_HOST_VER}
-			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++-${LLVM_HOST_VER}
-			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl-${LLVM_HOST_VER}
-			#ln -s x86_64-gentoo-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp-${LLVM_HOST_VER}
-			##ln -s x86_64-gentoo-linux-musl-clang /usr/bin/${unique_target}-clang
-			##ln -s x86_64-gentoo-linux-musl-llvm-config /usr/bin/${unique_target}-llvm-config
-			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang
-			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++
-			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl
-			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp
-			ln -s x86_64-pc-linux-gnu-llvm-config /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-llvm-config
-			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-${LLVM_HOST_VER}
-			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++-${LLVM_HOST_VER}
-			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl-${LLVM_HOST_VER}
-			ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp-${LLVM_HOST_VER}
-			#ln -s x86_64-pc-linux-gnu-clang /usr/bin/${unique_target}-clang
-			#ln -s x86_64-pc-linux-gnu-llvm-config /usr/bin/${unique_target}-llvm-config
+			ln -s x86_64-pc-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang
+			ln -s x86_64-pc-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++
+			ln -s x86_64-pc-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl
+			ln -s x86_64-pc-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp
+			ln -s x86_64-pc-linux-musl-llvm-config /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-llvm-config
+			ln -s x86_64-pc-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-${LLVM_HOST_VER}
+			ln -s x86_64-pc-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++-${LLVM_HOST_VER}
+			ln -s x86_64-pc-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl-${LLVM_HOST_VER}
+			ln -s x86_64-pc-linux-musl-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp-${LLVM_HOST_VER}
+			#ln -s x86_64-pc-linux-musl-clang /usr/bin/${unique_target}-clang
+			#ln -s x86_64-pc-linux-musl-llvm-config /usr/bin/${unique_target}-llvm-config
+
+			#ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang
+			#ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++
+			#ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl
+			#ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp
+			#ln -s x86_64-pc-linux-gnu-llvm-config /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-llvm-config
+			#ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-${LLVM_HOST_VER}
+			#ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang++-${LLVM_HOST_VER}
+			#ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cl-${LLVM_HOST_VER}
+			#ln -s x86_64-pc-linux-gnu-clang /usr/lib/llvm/${LLVM_HOST_VER}/bin/${unique_target}-clang-cpp-${LLVM_HOST_VER}
+			##ln -s x86_64-pc-linux-gnu-clang /usr/bin/${unique_target}-clang
+			##ln -s x86_64-pc-linux-gnu-llvm-config /usr/bin/${unique_target}-llvm-config
 		fi
 		# locale-gen is usually not present for musl (host environment), but is needed if target toolchain is glibc
 		if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`" = "glibc" ]
@@ -311,8 +321,8 @@ then
 
 		# choose latest crossdev toolchain versions
 		eselect gcc set ${unique_target}-`ls -1v /usr/lib/gcc/${unique_target} | tail -n 1`
-		#eselect binutils set ${unique_target}-`ls -1v /usr/x86_64-gentoo-linux-musl/${unique_target}/binutils-bin | grep -v lib | tail -n 1`
-		eselect binutils set ${unique_target}-`ls -1v /usr/x86_64-pc-linux-gnu/${unique_target}/binutils-bin | grep -v lib | tail -n 1`
+		eselect binutils set ${unique_target}-`ls -1v /usr/x86_64-pc-linux-musl/${unique_target}/binutils-bin | grep -v lib | tail -n 1`
+		#eselect binutils set ${unique_target}-`ls -1v /usr/x86_64-pc-linux-gnu/${unique_target}/binutils-bin | grep -v lib | tail -n 1`
 
 		# use clang target --gcc-install-dir autodetection, don't rely on gentoo defaults
 		if [ -e /etc/clang ]
@@ -353,11 +363,16 @@ then
 				fi
 				ln -s ${BUILD_CONF}/../../packages/${TEMP_TARGET} /usr/${unique_target}.skeleton/packages
 			fi
+			if [ -L /usr/${unique_target} ]
+			then
+				rm /usr/${unique_target}
+				ln -s /usr/${unique_target}.skeleton /usr/${unique_target}
+			fi
 			unset VIDEO_CARDS
 			${unique_target}-emerge -1kq sys-devel/gcc \
 				sys-libs/$(grep ELIBC ${BUILD_CONF}/../${TEMP_TARGET}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//')
 			${unique_target}-emerge -1kq dev-libs/openssl
-			mv ${BUILD_CONF}/../../packages/${TEMP_TARGET} /tmp/packages-${TEMP_TARGET}
+			#mv ${BUILD_CONF}/../../packages/${TEMP_TARGET} /tmp/packages-${TEMP_TARGET}
 		# signal to non-chroot script that crossdev target environments are ready for next targets in line for chroot
 		# TODO: replace with flock
 		else
@@ -565,7 +580,7 @@ ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/`ls -1v /usr/${CROSSDEV_TARG
 CHROOT_RESUME_LINENO="0"
 
 cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
-if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ] && [ ! -e ${BUILD_CONF}/split.initramfs ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	# use target kernel .config
@@ -634,10 +649,57 @@ CHROOT_RESUME_LINENO="0"
 
 sed -i -e 's@^sys-libs/pam@#sys-libs/pam@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.use/pam
 
+# order/sort extra package containers by dependency on one another
+WORLD_TREE=""
+if [ -d ${BUILD_CONF}/worlds/tree ]
+then
+	for world_dep in ${BUILD_CONF}/worlds/tree/*
+	do
+		WORLD_KEY="$(echo ${world_dep} | sed -e 's#.*tree/##')"
+		WORLD_VAL="$(cat ${world_dep})"
+		if [ "${WORLD_TREE}" != "" ]
+		then
+			for dep_dep in $(echo ${WORLD_TREE})
+			do
+				DEP_VAL="$(cat ${BUILD_CONF}/worlds/tree/${dep_dep})"
+				if [ "${DEP_VAL}" = "${WORLD_KEY}" ]
+				then
+					WORLD_TREE="$(echo ${WORLD_TREE} | sed -E "s/${WORLD_KEY} ?//")"
+					WORLD_TREE="$(echo ${WORLD_TREE} | sed -e "s/${dep_dep}/${WORLD_KEY} ${dep_dep}/")"
+					break
+				elif $(echo ${WORLD_TREE} | grep -qv "${WORLD_KEY}")
+				then
+					WORLD_TREE="${WORLD_TREE} ${WORLD_KEY}"
+				fi
+			done
+		else
+			WORLD_TREE="${WORLD_KEY}"
+		fi
+		if [ "${WORLD_VAL}" != "base" ] && $(echo ${WORLD_TREE} | grep -qv "${WORLD_VAL}")
+		then
+			WORLD_TREE="$(echo ${WORLD_TREE} | sed -e "s/${WORLD_KEY}/${WORLD_VAL} ${WORLD_KEY}/")"
+		elif [ "${WORLD_VAL}" != "base" ] && $(echo ${WORLD_TREE} | grep -q "${WORLD_VAL}")
+		then
+			for dep_dep in $(echo ${WORLD_TREE})
+			do
+				DEP_VAL="$(cat ${BUILD_CONF}/worlds/tree/${dep_dep})"
+				if [ "${DEP_VAL}" != "base" ] && [ "${DEP_VAL}" = "${WORLD_VAL}" ]
+				then
+					WORLD_TREE="$(echo ${WORLD_TREE} | sed -E "s/${DEP_VAL} ?//")"
+					WORLD_TREE="$(echo ${WORLD_TREE} | sed -e "s/${dep_dep}/${WORLD_VAL} ${dep_dep}/")"
+					break
+				fi
+			done
+		fi
+	done
+fi
+export WORLD_TREE="${WORLD_TREE}"
+
 # build / update crossdev target world
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
-	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -uDNkq --with-bdeps=y `cat ${BUILD_CONF}/worlds/{base,extra}`
+	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -uDNkq --with-bdeps=y \
+	$(for world in base ${WORLD_TREE}; do cat ${BUILD_CONF}/worlds/${world}; done)
 CHROOT_RESUME_LINENO="0"
 
 # build crossdev target live ebuilds with updates
@@ -684,6 +746,14 @@ then
 		PATCH_SQUASHFS="yes"
 	fi
 	mkdir -p ../squashfs/etc
+	mkdir -p ../squashfs/usr/lib
+	ln -s lib ../squashfs/usr/lib64
+	ln -s usr/lib ../squashfs/lib
+	ln -s usr/lib ../squashfs/lib64
+	mkdir ../squashfs/usr/bin
+	ln -s bin ../squashfs/usr/sbin
+	ln -s usr/bin ../squashfs/bin
+	ln -s usr/bin ../squashfs/sbin
 	#touch ../squashfs/etc/{group,passwd,shadow}
 fi
 
@@ -901,160 +971,183 @@ else
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
-# create final build extra packages directory if missing, reuse base /var/db/pkg
-# TODO: refactor for crossdev stage3 build compatibility (done?)
-if [ ! -e ../squashfs.extra ]
-then
-	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	mkdir -p ../squashfs.extra/var/db
-	cp -a ../squashfs.exclude/pkg.base ../squashfs.extra/var/db/pkg
-# prepare final build extra packages directory if present from build history
-# TODO: avoid letting errors pass (done?)
-else
-	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	mkdir ../squashfs.exclude/pkg.tmp
-	mount -t tmpfs tmpfs ../squashfs.exclude/pkg.tmp
-	mkdir ../squashfs.exclude/pkg.tmp/{b,e,w,u,m}
-	cd ../squashfs.exclude/pkg.tmp
-	#mount -o bind ../pkg.base b
-	#mount -o bind ../pkg.extra e
-	cp -a ../pkg.base/* b/
-	#set +e
-	if [ -e ../pkg.extra ] && [ "$(ls -1 ../pkg.extra | wc -l)" -gt "0" ]
+# loop through sorted extra package container list and create each image
+for world_img in ${WORLD_TREE}
+do
+	# determine which image is overlaid directly beneath this one, set to base if unspecified
+	if [ ! -e ${BUILD_CONF}/worlds/tree/${world_img} ]
 	then
-		cp -a ../pkg.extra/* e/
+		WORLD_BASE="base"
+	else
+		WORLD_BASE="$(cat ${BUILD_CONF}/worlds/tree/${world_img})"
 	fi
-	#set -e
-	mount -t overlay overlay -olowerdir=b:e,workdir=w,upperdir=u m
-	#set +e
-	if [ -e ../../squashfs.extra/var/db/pkg ]
+
+	# create final build extra packages directory if missing, reuse base /var/db/pkg
+	# TODO: refactor for crossdev stage3 build compatibility (done?)
+	if [ ! -e ../squashfs.${world_img} ]
 	then
-		rm -rf ../../squashfs.extra/var/db/pkg
-	fi
-	#set -e
-	cp -r m ../../squashfs.extra/var/db/pkg
-	cd ..
-	#umount pkg.tmp/m pkg.tmp/e pkg.tmp/b pkg.tmp
-	umount pkg.tmp/m pkg.tmp
-	rm -rf pkg.tmp
-	mv pkg.extra "${BUILD_DATE}/pkg.extra.old"
-fi
-CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
-
-# copy target portage configuration from cross-build environment to final build extra packages directory
-if [ ! -e ../squashfs.extra/etc ]
-then
-	mkdir -p ../squashfs.extra/etc
-elif [ -d ../squashfs.extra/etc/portage ]
-then
-	rm -rf ../squashfs.extra/etc/portage
-fi
-mkdir -p ../squashfs.extra/etc/portage
-cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/* ../squashfs.extra/etc/portage
-
-# bind mount base /etc to extra to avoid configuration clobbering
-mount -o bind ../squashfs/etc ../squashfs.extra/etc
-
-# install binpkg files in final build extra packages directory
-CHROOT_RESUME_LINENO="$LINENO"
-FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs.extra --config-root=../squashfs.extra \
-	--sysroot=../squashfs.extra -uDNKq --with-bdeps=y `cat ${BUILD_CONF}/worlds/extra`
-CHROOT_RESUME_LINENO="0"
-
-# unmount base /etc from extra before depclean to avoid configuration file loss
-umount ../squashfs.extra/etc
-
-# final build extra packages depclean
-${CROSSDEV_TARGET}-emerge --root=../squashfs.extra --sysroot=../squashfs.extra --config-root=../squashfs.extra -q --depclean
-
-# BUG: some packages install files in wrong location; move them to where they can be found
-# note: is this mkdir required, considering the code below?
-cd ../squashfs.extra
-if [ ! -e lib/udev/rules.d ]
-then
-	mkdir -p lib/udev/rules.d
-fi
-
-# make sure all packages place their files in same directories
-# TODO: make compatible with merged-usr (done?)
-if [ -e usr/${CROSSDEV_TARGET}.${BUILD_NAME} ]
-then
-	cd usr/${CROSSDEV_TARGET}.${BUILD_NAME}
-	for i in `find . -type f,l`
-	do
-		if [ ! -d ../../`dirname ${i}` ]
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		mkdir -p ../squashfs.${world_img}/var/db
+		cp -a ../squashfs.exclude/pkg.${WORLD_BASE} ../squashfs.${world_img}/var/db/pkg
+		mkdir -p ../squashfs.${world_img}/var/lib/portage
+		cp -a ../squashfs$([ "${WORLD_BASE}" != "base" ] && echo -n ".${WORLD_BASE}")/var/lib/portage/world \
+			../squashfs.${world_img}/var/lib/portage/world
+		mkdir -p ../squashfs.${world_img}/usr/lib
+		ln -s lib ../squashfs.${world_img}/usr/lib64
+		ln -s usr/lib ../squashfs.${world_img}/lib
+		ln -s usr/lib ../squashfs.${world_img}/lib64
+		mkdir ../squashfs.${world_img}/usr/bin
+		ln -s bin ../squashfs.${world_img}/usr/sbin
+		ln -s usr/bin ../squashfs.${world_img}/bin
+		ln -s usr/bin ../squashfs.${world_img}/sbin
+	# prepare final build extra packages directory if present from build history
+	# TODO: avoid letting errors pass (done?)
+	else
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		mkdir ../squashfs.exclude/pkg.tmp
+		mount -t tmpfs tmpfs ../squashfs.exclude/pkg.tmp
+		mkdir ../squashfs.exclude/pkg.tmp/{b,e,w,u,m}
+		cd ../squashfs.exclude/pkg.tmp
+		#mount -o bind ../pkg.base b
+		#mount -o bind ../pkg.extra e
+		cp -a ../pkg.${WORLD_BASE}/* b/
+		#set +e
+		if [ -e ../pkg.${world_img} ] && [ "$(ls -1 ../pkg.${world_img} | wc -l)" -gt "0" ]
 		then
-			mkdir -p ../../`dirname ${i}`
+			cp -a ../pkg.${world_img}/* e/
 		fi
-		mv "${i}" "../../${i}"
-	done
-	cd ../..
-fi
+		#set -e
+		mount -t overlay overlay -olowerdir=b:e,workdir=w,upperdir=u m
+		#set +e
+		if [ -e ../../squashfs.${world_img}/var/db/pkg ]
+		then
+			rm -rf ../../squashfs.${world_img}/var/db/pkg
+		fi
+		#set -e
+		cp -r m ../../squashfs.${world_img}/var/db/pkg
+		cd ..
+		#umount pkg.tmp/m pkg.tmp/e pkg.tmp/b pkg.tmp
+		umount pkg.tmp/m pkg.tmp
+		rm -rf pkg.tmp
+		mv pkg.${world_img} "${BUILD_DATE}/pkg.${world_img}.old"
+	fi
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
-# note: testing this no longer being needed
-#if [ -h lib ]
-#then
-#	rm lib
-#fi
-#if [ -d lib64 ]
-#then
-#	cd lib64
-#	for i in `find . -type f,l`
-#	do
-#		if [ ! -d ../lib/`dirname ${i}` ]
-#		then
-#			mkdir -p ../lib/`dirname ${i}`
-#		fi
-#		mv ${i} ../lib/${i}
-#	done
-#	cd ..
-#	rm -rf lib64
-#	#ln -s lib64 lib
-#fi
+	# copy target portage configuration from cross-build environment to final build extra packages directory
+	if [ ! -e ../squashfs.${world_img}/etc ]
+	then
+		mkdir -p ../squashfs.${world_img}/etc
+	elif [ -d ../squashfs.${world_img}/etc/portage ]
+	then
+		rm -rf ../squashfs.${world_img}/etc/portage
+	fi
+	mkdir -p ../squashfs.${world_img}/etc/portage
+	cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/* ../squashfs.${world_img}/etc/portage
 
-#if [ -h usr/lib ]
-#then
-#	rm usr/lib
-#fi
-#if [ -d usr/lib64 ]
-#then
-#	cd usr/lib64
-#	for i in `find . -type f,l`
-#	do
-#		if [ ! -d ../lib/`dirname ${i}` ]
-#		then
-#			mkdir -p ../lib/`dirname ${i}`
-#		fi
-#		mv ${i} ../lib/${i}
-#	done
-#	cd ../..
-#	rm -rf usr/lib64
-#	#ln -s lib64 usr/lib
-#fi
+	# bind mount base /etc to extra to avoid configuration clobbering
+	mount -o bind ../squashfs/etc ../squashfs.${world_img}/etc
 
-# symlink libOpenGL,so to libGL.so.1 if missing
-# TODO: uncomment or remove depending on purpose
-#if [ ! -e usr/lib/libGL.so.1 && ! -h usr/lib/libGL.so.1 ]
-#then
-#	ln -s libOpenGL.so usr/lib/libGL.so.1
-#fi
+	# install binpkg files in final build extra packages directory
+	CHROOT_RESUME_LINENO="$LINENO"
+	FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs.${world_img} --config-root=../squashfs.${world_img} \
+		--sysroot=../squashfs.${world_img} -uDNKq --with-bdeps=y `cat ${BUILD_CONF}/worlds/${world_img}`
+	CHROOT_RESUME_LINENO="0"
 
-# exclude files from final build extra packages directory
-# TODO: remove this, replace with longer INSTALL_MASK in target configuration
-#set +e
-##mv usr/${CROSSDEV_TARGET}/lib/udev/rules.d/* lib/udev/rules.d/
-##mv usr/${CROSSDEV_TARGET}.${BUILD_NAME}/lib/udev/rules.d/* lib/udev/rules.d/
-##mv usr/${CROSSDEV_TARGET}/lib/udev/net.sh lib/udev/rules.d/
-##mv usr/${CROSSDEV_TARGET}.${BUILD_NAME}/lib/udev/net.sh lib/udev/rules.d/
+	# unmount base /etc from extra before depclean to avoid configuration file loss
+	umount ../squashfs.${world_img}/etc
 
-#mv ../squashfs.extra/usr/include  "../squashfs.exclude/${BUILD_DATE}/include.extra"
-if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
-then
-	mv ../squashfs.extra/var/db/pkg ../squashfs.exclude/pkg.extra
-	rm -rf ../squashfs.extra/var/cache/edb
-else
-	cp -a ../squashfs.extra/var/db/pkg ../squashfs.exclude/pkg.extra
-fi
+	# final build extra packages depclean
+	${CROSSDEV_TARGET}-emerge --root=../squashfs.${world_img} --sysroot=../squashfs.${world_img} --config-root=../squashfs.${world_img} -q --depclean
+
+	# BUG: some packages install files in wrong location; move them to where they can be found
+	# note: is this mkdir required, considering the code below?
+	cd ../squashfs.${world_img}
+	if [ ! -e lib/udev/rules.d ]
+	then
+		mkdir -p lib/udev/rules.d
+	fi
+
+	# make sure all packages place their files in same directories
+	# TODO: make compatible with merged-usr (done?)
+	if [ -e usr/${CROSSDEV_TARGET}.${BUILD_NAME} ]
+	then
+		cd usr/${CROSSDEV_TARGET}.${BUILD_NAME}
+		for i in `find . -type f,l`
+		do
+			if [ ! -d ../../`dirname ${i}` ]
+			then
+				mkdir -p ../../`dirname ${i}`
+			fi
+			mv "${i}" "../../${i}"
+		done
+		cd ../..
+	fi
+
+	# note: testing this no longer being needed
+	#if [ -h lib ]
+	#then
+	#	rm lib
+	#fi
+	#if [ -d lib64 ]
+	#then
+	#	cd lib64
+	#	for i in `find . -type f,l`
+	#	do
+	#		if [ ! -d ../lib/`dirname ${i}` ]
+	#		then
+	#			mkdir -p ../lib/`dirname ${i}`
+	#		fi
+	#		mv ${i} ../lib/${i}
+	#	done
+	#	cd ..
+	#	rm -rf lib64
+	#	#ln -s lib64 lib
+	#fi
+
+	#if [ -h usr/lib ]
+	#then
+	#	rm usr/lib
+	#fi
+	#if [ -d usr/lib64 ]
+	#then
+	#	cd usr/lib64
+	#	for i in `find . -type f,l`
+	#	do
+	#		if [ ! -d ../lib/`dirname ${i}` ]
+	#		then
+	#			mkdir -p ../lib/`dirname ${i}`
+	#		fi
+	#		mv ${i} ../lib/${i}
+	#	done
+	#	cd ../..
+	#	rm -rf usr/lib64
+	#	#ln -s lib64 usr/lib
+	#fi
+
+	# symlink libOpenGL,so to libGL.so.1 if missing
+	# TODO: uncomment or remove depending on purpose
+	#if [ ! -e usr/lib/libGL.so.1 && ! -h usr/lib/libGL.so.1 ]
+	#then
+	#	ln -s libOpenGL.so usr/lib/libGL.so.1
+	#fi
+
+	# exclude files from final build extra packages directory
+	# TODO: remove this, replace with longer INSTALL_MASK in target configuration
+	#set +e
+	##mv usr/${CROSSDEV_TARGET}/lib/udev/rules.d/* lib/udev/rules.d/
+	##mv usr/${CROSSDEV_TARGET}.${BUILD_NAME}/lib/udev/rules.d/* lib/udev/rules.d/
+	##mv usr/${CROSSDEV_TARGET}/lib/udev/net.sh lib/udev/rules.d/
+	##mv usr/${CROSSDEV_TARGET}.${BUILD_NAME}/lib/udev/net.sh lib/udev/rules.d/
+
+	#mv ../squashfs.extra/usr/include  "../squashfs.exclude/${BUILD_DATE}/include.extra"
+	if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
+	then
+		mv ../squashfs.${world_img}/var/db/pkg ../squashfs.exclude/pkg.${world_img}
+		rm -rf ../squashfs.${world_img}/var/cache/edb
+	else
+		cp -a ../squashfs.${world_img}/var/db/pkg ../squashfs.exclude/pkg.${world_img}
+	fi
+done
 #mv ../squashfs.extra/usr/share/gtk-doc ../squashfs.exclude/gtk-doc
 #mv ../squashfs.extra/usr/share/qemu/edk2-a* ../squashfs.exclude/
 #set -e
@@ -1136,7 +1229,7 @@ if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != 
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
-	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- INSTALL_MOD_PATH=../squashfs make modules_install
+	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- INSTALL_MOD_PATH=../squashfs INSTALL_MOD_STRIP="--strip-unneeded" make modules_install
 else
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	if [ ! -e ../squashfs/lib/modules ]
@@ -1193,26 +1286,68 @@ then
 	mv ../initramfs/base ../base-${BUILD_DATE}
 fi
 
-# go to final build extra packages directory and compress it
-# TODO: use sys-fs/squashfs-tools-ng instead
-# TODO: additionally support tarballs
-cd ../squashfs.extra
-#mksquashfs . ../initramfs/extra -comp xz -b 1048576 -Xbcj ${SQUASH_BCJ} -Xdict-size 1048576
-if [ -e ../initramfs/extra ]
-then
-	rm ../initramfs/extra
-fi
-mksquashfs . ../initramfs/extra -comp xz -b 1048576 -Xdict-size 1048576
+for world_img in ${WORLD_TREE}
+do
+	# go to final build extra packages directory and compress it
+	# TODO: use sys-fs/squashfs-tools-ng instead
+	# TODO: additionally support tarballs
+	cd ../squashfs.${world_img}
+	#mksquashfs . ../initramfs/extra -comp xz -b 1048576 -Xbcj ${SQUASH_BCJ} -Xdict-size 1048576
+	if [ -e ../initramfs/${world_img} ]
+	then
+		rm ../initramfs/${world_img}
+	fi
+	mksquashfs . ../initramfs/${world_img} -comp xz -b 1048576 -Xdict-size 1048576
 
-# separate userland extra packages from kernel binary if triggered by target configuration
-if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
-then
-	mv ../initramfs/extra ../extra-${BUILD_DATE}
-fi
+	# separate userland extra packages from kernel binary if triggered by target configuration
+	if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
+	then
+		mv ../initramfs/${world_img} ../${world_img}-${BUILD_DATE}
+	fi
+done
 
 cd ../linux
 # rebuild kernel with updated initramfs including userland if triggered by target configuration
-if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ]
+if [ -e ${BUILD_CONF}/split.initramfs ]
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	BUILD_KERNEL_VER="$(ls -1 ../squashfs/lib/modules)"
+	cd ../initramfs
+	mkdir -p lib/modules/${BUILD_KERNEL_VER}/kernel/drivers/block \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/netfs \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/9p \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/squashfs \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/overlayfs \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/drivers/block/{loop,virtio_blk}* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/drivers/block/
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/netfs/* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/netfs/
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/9p/* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/9p/
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/squashfs/* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/squashfs/
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/overlayfs/* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/overlayfs/
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/9pnet{,_virtio}.ko \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/
+	depmod -a -b . ${BUILD_KERNEL_VER}
+	cp -a ../squashfs/lib/{ld-,libc.so,libcrypt.so}* lib/
+	cp -a ../squashfs/lib/{libcrypto.so,libssl.so}* lib/
+	if [ -e ../squashfs.extra/bin/wrmsr ]
+	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		cp -a ../squashfs.extra/bin/{rd,wr}msr bin/
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+	fi
+	find . -print0 | cpio -0 -H newc -v -o | gzip --best > ../initramfs-${BUILD_DATE}
+	cd ../linux
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+elif [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ] && \
+	[ "`grep 'sys-kernel/gentoo-kernel-bin' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	CHROOT_RESUME_LINENO="$LINENO"
@@ -1226,6 +1361,18 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm usr/initramfs_data.cpio
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+fi
+
+# comment crossdev target INSTALL_MASK (needed for embedded gentoo)
+# TODO: ensure compatibility with full stage3 cross-emerge
+# note: testing check for @system in crossdev target configuration's base world file
+if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	sed -i -e 's/^INSTALL_MASK/#INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
+	#sed -i -e 's@^sys-devel/gcc@#sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+	sed -i -e 's@^INSTALL_MASK@#INSTALL_MASK@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/env/sys-devel/gcc
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
@@ -1271,18 +1418,28 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
-# copy userland extra packages to output directory if separate from kernel
-if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
+for world_img in ${WORLD_TREE}
+do
+	# copy userland extra packages to output directory if separate from kernel
+	if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
+	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		# raspberry pi location
+		if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
+		then
+			cp ../${world_img}-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/boot/${world_img}
+		# x86_64 uefi location
+		else
+			cp ../${world_img}-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/${world_img}
+		fi
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+	fi
+done
+
+if [ -e ${BUILD_CONF}/split.initramfs ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	# raspberry pi location
-	if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
-	then
-		cp ../extra-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/boot/extra
-	# x86_64 uefi location
-	else
-		cp ../extra-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/extra
-	fi
+	cp ../initramfs-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/initramfs
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 

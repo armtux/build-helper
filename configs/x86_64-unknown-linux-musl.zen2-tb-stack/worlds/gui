@@ -1,0 +1,8 @@
+app-arch/unzip
+dev-libs/expat
+gui-apps/foot
+gui-apps/swayidle
+gui-apps/swaylock
+gui-wm/sway
+media-fonts/noto
+x11-themes/adwaita-icon-theme

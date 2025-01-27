@@ -1,0 +1,4 @@
+cross-aarch64-gentoo-linux-musl/binutils -multilib
+cross-aarch64-gentoo-linux-musl/linux-headers -selinux -multilib
+cross-aarch64-gentoo-linux-musl/musl -selinux -libraries -multilib
+cross-aarch64-gentoo-linux-musl/gcc -sanitize -vtv -selinux -boundschecking -d -gcj -gtk -libffi -mudflap -objc -objc++ -objc-gc -sanitize -multilib

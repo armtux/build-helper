@@ -1,0 +1,5 @@
+@world
+dev-libs/openssl
+sys-apps/toybox
+sys-kernel/linux-firmware
+virtual/libudev

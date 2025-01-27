@@ -1,0 +1,4 @@
+cross-x86_64-unknown-linux-musl/binutils -multilib
+cross-x86_64-unknown-linux-musl/linux-headers -selinux -multilib
+cross-x86_64-unknown-linux-musl/musl cet -selinux -libraries -multilib
+cross-x86_64-unknown-linux-musl/gcc -sanitize -vtv cet -selinux -boundschecking -d -gcj -gtk -libffi -mudflap -objc -objc++ -objc-gc -sanitize -multilib

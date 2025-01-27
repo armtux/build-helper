@@ -1,0 +1,5 @@
+[musl-local-zen2-tb-stack]
+location = /var/db/repos/portage-musl-zen2-tb-stack
+priority = 10
+masters = gentoo
+auto-sync = no

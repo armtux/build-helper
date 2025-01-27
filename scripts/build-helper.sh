@@ -84,7 +84,7 @@ export MNT_OPTS="${MNT_OPTS:-size=30G}"
 # chroot /tmp /var/tmp type (options: none or tmpfs)
 export TMP_TYPE="${TMP_TYPE:-none}"
 # chroot /var/tmp/portage tmpfs mount size
-export TMP_SIZE="${TMP_SIZE:-24G}"
+export TMP_SIZE="${TMP_SIZE:-30G}"
 # old: "unreliable" option for mksquashfs
 #export SQUASH_BCJ="${SQUASH_BCJ:-x86}"
 #export SQUASH_BCJ_HIST="${SQUASH_BCJ_HIST:-x86}"
@@ -119,6 +119,8 @@ export DISTFILES="${DISTFILES:-${BUILD_HELPER_TREE}/distfiles}"
 export MNT_PATH="/mnt/${BUILD_NAME}-${BUILD_DATE}"
 # whether to ask before unmounting chroot mounts at the end of the script
 export UMOUNT_ASK="${UMOUNT_ASK:-yes}"
+# setup mount points and exit; do not build
+export MOUNT_HIST="${MOUNT_HIST:-no}"
 
 # minimally sanitize input and display usage if invalid
 DISPLAY_USAGE="no"
@@ -135,7 +137,7 @@ then
 		for i in `echo ${1} | sed -e 's/:/ /g'`
 		do
 			# check if target tuple/build name combination match a target configuration
-			TUPLE_COUNT="`expr \"${TUPLE_COUNT}\" + \"1\"`"
+			TUPLE_COUNT="$((${TUPLE_COUNT} + 1))"
 			CONF_FOUND="no"
 			if [ -e ${BUILD_HELPER_TREE}/configs/${i}.`echo ${2} | cut -d ':' -f ${TUPLE_COUNT}` ]
 			then
@@ -180,6 +182,10 @@ build_helper_mounts() {
 	if [ ! -e "${DISTFILES}" ]
 	then
 		mkdir -p "${DISTFILES}"
+	fi
+	if [ ! -e ./var/cache/distfiles ]
+	then
+		mkdir -p ./var/cache/distfiles
 	fi
 	mount -o bind ${DISTFILES} ./var/cache/distfiles
 
@@ -304,7 +310,11 @@ cd "${MNT_PATH}"
 mkdir s w u m
 # fetch and verify initial stage3 tarball if path to prior work to update not defined, otherwise mount prior work
 #if [ "${HIST_TYPE}" = "files" ] && [ -e "${BUILD_HELPER_TREE}/history" ]
-if [ ! $(echo "${BUILD_HIST}" | grep -q '/') ]
+if [ "${BUILD_HIST}" = "no" ]
+then
+	export BUILD_HIST=""
+fi
+if [ "$(echo "${BUILD_HIST}" | grep '/')" = "" ] && [ "${BUILD_HIST}" != "" ]
 then
 	export BUILD_HIST="${BUILD_HELPER_TREE}/history/${BUILD_HIST}"
 fi
@@ -316,8 +326,8 @@ then
 elif [ "${BUILD_HIST}" = "" ]
 then
 	export FIRST_BUILD="yes"
-	#TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | grep xz | cut -d ' ' -f 1`"
-	TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-nomultilib-openrc.txt | grep xz | cut -d ' ' -f 1`"
+	TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | grep xz | cut -d ' ' -f 1`"
+	#TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-nomultilib-openrc.txt | grep xz | cut -d ' ' -f 1`"
 	curl -O ${TARBALL_LINK}.asc -O ${TARBALL_LINK}.DIGESTS -O ${TARBALL_LINK}
 	#curl -O ${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1` -O ${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1`.DIGESTS.asc
 	if [ -e /usr/share/openpgp-keys/gentoo-release.asc ]
@@ -357,7 +367,7 @@ TARGET_COUNT="0"
 for target in `echo ${1} | sed -e 's/:/ /g'`
 do
 	# increment which input target to prepare
-	TARGET_COUNT="`expr \"${TARGET_COUNT}\" + \"1\"`"
+	TARGET_COUNT="$((${TARGET_COUNT} + 1))"
 
 	# set unique target variables
 	export CROSSDEV_TARGET="${target}"
@@ -371,15 +381,22 @@ do
 	# TODO: use flock instead of cross_ready signal files
 	if [ "${PRIMARY_BUILD}" = "no" ]
 	then
-		until [ -e ${MNT_PATH}/m/tmp/cross_ready.${CROSSDEV_TARGET} ]
-		do
-			sleep 5
-		done
+		if [ "${MOUNT_HIST}" = "no" ]
+		then
+			until [ -e ${MNT_PATH}/m/tmp/cross_ready.${CROSSDEV_TARGET} ]
+			do
+				sleep 5
+			done
+		else
+			touch ${MNT_PATH}/m/tmp/cross_ready.${CROSSDEV_TARGET}
+		fi
 	
 		mkdir -p ${MNT_PATH}/${BUILD_NAME}-${BUILD_DATE}/{l,w,u,m}
 		cd ${MNT_PATH}/${BUILD_NAME}-${BUILD_DATE}
 		mount -o bind ../m l
 		mount -t overlay overlay -olowerdir=l,workdir=w,upperdir=u m
+		# work-around for crashing parallel builds/overlayfs corruption from when the same host dependency is installed by different cross-emerge runs
+		mount -o bind ../m/var/db/pkg m/var/db/pkg
 		cd m
 		build_helper_mounts
 		cp ../../m/tmp/cross_ready.${CROSSDEV_TARGET} tmp/
@@ -428,6 +445,12 @@ do
 		mount -t tmpfs tmpfs \
 			-o rw,nosuid,nodev,noatime,size=${TMP_SIZE},mode=775,uid=250,gid=250 \
 			usr/${CROSSDEV_TARGET}.${BUILD_NAME}/tmp/portage
+	fi
+
+	if [ "${MOUNT_HIST}" = "yes" ]
+	then
+		export PRIMARY_BUILD="no"
+		continue
 	fi
 
 	# TODO: add tmux support
@@ -483,11 +506,16 @@ do
 	export PRIMARY_BUILD="no"
 done
 
+if [ "${MOUNT_HIST}" = "yes" ]
+then
+	exit 0
+fi
+
 # wait until all other target build chroot syncs complete before continuing primary build
 BUILD_COUNT="0"
 for build in `echo ${1} | sed -e 's/:/ /g'`
 do
-	BUILD_COUNT="`expr \"${BUILD_COUNT}\" + \"1\"`"
+	BUILD_COUNT="$((${BUILD_COUNT} + 1))"
 	BUILD_COUNT_NAME="`echo ${2} | cut -d ':' -f ${BUILD_COUNT}`"
 	if [ "${BUILD_COUNT}" -ne "1" ]
 	then
@@ -503,7 +531,7 @@ done
 BUILD_COUNT="0"
 for build in `echo ${1} | sed -e 's/:/ /g'`
 do
-	BUILD_COUNT="`expr \"${BUILD_COUNT}\" + \"1\"`"
+	BUILD_COUNT="$((${BUILD_COUNT} + 1))"
 	until [ -e ${MNT_PATH}/m${BUILD_HELPER_TREE}/builds/${build}.`echo ${2} | cut -d ':' -f ${BUILD_COUNT}`.${BUILD_DATE}/EFI ]
 	do
 		sleep 5
@@ -537,7 +565,11 @@ then
 	mv "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" "${BUILD_HELPER_TREE}/history/${BUILD_DATE}.sqfs"
 else
 	mkdir -p "${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
-	rsync -HAaX . "${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
+	mkdir -p "${MNT_PATH}/m${BUILD_HELPER_TREE}/history"
+	mount -o bind "${BUILD_HELPER_TREE}/history" "${MNT_PATH}/m${BUILD_HELPER_TREE}/history"
+	mount --rbind . "${MNT_PATH}/m/media"
+	chroot "${MNT_PATH}/m" /bin/bash -c "cd /media && rsync -HAaX . ${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
+	#rsync -HAaX . "${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
 fi
 cd
 

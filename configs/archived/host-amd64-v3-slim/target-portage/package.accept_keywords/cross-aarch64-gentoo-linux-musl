@@ -1,0 +1,5 @@
+cross-aarch64-gentoo-linux-musl/linux-headers arm64 ~arm64 -amd64 -~amd64
+cross-aarch64-gentoo-linux-musl/musl arm64 ~arm64 -amd64 -~amd64
+cross-aarch64-gentoo-linux-musl/binutils arm64 ~arm64 -amd64 -~amd64
+cross-aarch64-gentoo-linux-musl/gcc arm64 ~arm64 -amd64 -~amd64
+cross-aarch64-gentoo-linux-musl/gdb arm64 ~arm64 -amd64 -~amd64

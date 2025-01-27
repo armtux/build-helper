@@ -1,0 +1,12 @@
+diff '--color=auto' -urN old/src/basic/rlimit-util.c new/src/basic/rlimit-util.c
+--- old/src/basic/rlimit-util.c	2024-09-05 03:52:41.580000000 +0000
++++ new/src/basic/rlimit-util.c	2024-09-05 03:53:48.970000000 +0000
+@@ -431,7 +431,7 @@
+ #ifdef __GLIBC__ /// To be compatible with musl-libc, elogind uses an (uintmax_t) cast.
+                 return log_debug_errno(errno, "Failed to lower RLIMIT_NOFILE's soft limit to " RLIM_FMT ": %m", rl.rlim_cur);
+ #else // __GLIBC__
+-                return log_debug_errno(errno, "Failed to lower RLIMIT_NOFILE's soft limit to " RLIM_FMT ": %m", (uintmax_t)rl.rlim_cur);
++                return log_debug_errno(errno, "Failed to lower RLIMIT_NOFILE's soft limit to " RLIM_FMT ": %m", (rlim_t)rl.rlim_cur);
+ #endif // __GLIBC__
+ 
+         return 1;

@@ -1,0 +1,4 @@
+sys-apps/smartmontools
+sys-fs/cryptsetup
+sys-fs/squashfs-tools-ng
+sys-fs/xfsprogs
