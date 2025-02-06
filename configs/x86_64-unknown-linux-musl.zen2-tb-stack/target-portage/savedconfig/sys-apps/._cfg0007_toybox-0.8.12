@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # ToyBox version: KCONFIG_VERSION
-# Sat Feb  1 04:04:21 2025
+# Sun Feb  2 19:08:28 2025
 #
 # CONFIG_TOYBOX_ON_ANDROID is not set
 CONFIG_TOYBOX_FORK=y

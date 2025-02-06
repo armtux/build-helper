@@ -19,7 +19,12 @@ HOMEPAGE="https://landley.net/code/toybox/"
 LICENSE="0BSD"
 SLOT="0"
 
-DEPEND="virtual/libcrypt:="
+IUSE="ssl"
+
+DEPEND="
+	virtual/libcrypt:=
+	ssl? ( dev-libs/openssl )
+"
 RDEPEND="${DEPEND}"
 
 src_prepare() {
@@ -32,7 +37,7 @@ src_configure() {
 	export HOSTCC="$(tc-getBUILD_CC)"
 	# Respect CFLAGS
 	export OPTIMIZE="${CFLAGS}"
-	export LDOPTIMIZE="-lcrypt -lcrypto -lssl"
+	export LDOPTIMIZE="-lcrypt -lcrypto$(use ssl && echo -n " -lssl")"
 
 	if [[ -f .config ]]; then
 		yes "" | emake -j1 oldconfig > /dev/null

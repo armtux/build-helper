@@ -3,7 +3,7 @@
 
 EAPI=8
 
-FIREFOX_PATCHSET="firefox-134-patches-01.tar.xz"
+FIREFOX_PATCHSET="firefox-135-patches-01.tar.xz"
 
 LLVM_COMPAT=( 17 18 19 )
 
@@ -54,7 +54,7 @@ MOZ_PV_DISTFILES="${MOZ_PV}${MOZ_PV_SUFFIX}"
 MOZ_P_DISTFILES="${MOZ_PN}-${MOZ_PV_DISTFILES}"
 
 inherit autotools check-reqs desktop flag-o-matic gnome2-utils linux-info llvm-r1 multiprocessing \
-	optfeature pax-utils python-any-r1 readme.gentoo-r1 rust toolchain-funcs virtualx xdg
+	optfeature pax-utils python-any-r1 readme.gentoo-r1 rust rust-toolchain toolchain-funcs virtualx xdg
 
 MOZ_SRC_BASE_URI="https://archive.mozilla.org/pub/${MOZ_PN}/releases/${MOZ_PV}"
 
@@ -806,10 +806,10 @@ src_configure() {
 		--host="${CBUILD:-${CHOST}}" \
 		--libdir="${EPREFIX}/usr/$(get_libdir)" \
 		--prefix="${EPREFIX}/usr" \
-		--target="${CHOST}" \
+		--target="$(rust_abi)" \
 		--without-ccache \
 		--with-intl-api \
-		--with-libclang-path="$(llvm-config --libdir)" \
+		--with-libclang-path="$(/usr/lib/llvm/${LLVM_SLOT}/bin/llvm-config --libdir)" \
 		--with-system-nspr \
 		--with-system-nss \
 		--with-system-zlib \
@@ -1245,10 +1245,10 @@ src_install() {
 
 	# Install icons
 	local icon_srcdir="${S}/browser/branding/official"
-	local icon_symbolic_file="${FILESDIR}/icon/firefox-symbolic.svg"
 
+	# Prefer the upstream svg file they use when packaging flatpak so it's always up-to-date.
 	insinto /usr/share/icons/hicolor/symbolic/apps
-	newins "${icon_symbolic_file}" ${PN}-symbolic.svg
+	newins "${S}"/taskcluster/docker/firefox-flatpak/firefox-symbolic.svg firefox-symbolic.svg
 
 	local icon size
 	for icon in "${icon_srcdir}"/default*.png ; do

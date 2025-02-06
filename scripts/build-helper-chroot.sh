@@ -469,15 +469,21 @@ ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME} /usr/${CROSSDEV_TARGET}
 # store crossdev target binpkg files in build-helper directory
 if [ -h /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 elif [ -e /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm -rf /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 if [ -e /tmp/packages-${CROSSDEV_TARGET}.${BUILD_NAME} ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mv /tmp/packages-${CROSSDEV_TARGET}.${BUILD_NAME}/* ${BUILD_PKGS}/
 	rmdir /tmp/packages-${CROSSDEV_TARGET}.${BUILD_NAME}
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 ln -s ${BUILD_PKGS} /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages
 
@@ -498,8 +504,10 @@ touch /tmp/cross_sync_ready.${CROSSDEV_TARGET}.${BUILD_NAME}
 # set locale before building crossdev target world if crossdev toolchain is glibc
 if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`" = "glibc" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	# TODO: allow user-defined locales
 	echo "en_US.UTF-8 UTF-8" > /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/locale.gen
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
 # comment crossdev target INSTALL_MASK (needed for embedded gentoo)
@@ -524,28 +532,40 @@ CHROOT_RESUME_LINENO="0"
 # include .config customizations if gentoo-kernel ebuild is being used
 if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	if [ ! -e /etc/kernel/config.d ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		mkdir -p /etc/kernel/config.d
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
 	if [ -e ${BUILD_CONF}/linux.config ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		cp ${BUILD_CONF}/linux.config /etc/kernel/config.d/
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	elif [ -e /etc/kernel/config.d/linux.config ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		rm /etc/kernel/config.d/linux.config
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 # build kernel and dependencies before other packages
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided.kernel" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mv "${BUILD_CONF}/target-portage/profile/package.provided.kernel" "${BUILD_CONF}/target-portage/profile/package.provided"
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ] && \
 	[ ! -e "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir -p "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs"
 	touch "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/initramfs_list"
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
@@ -553,7 +573,9 @@ ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 CHROOT_RESUME_LINENO="0"
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mv "${BUILD_CONF}/target-portage/profile/package.provided" "${BUILD_CONF}/target-portage/profile/package.provided.kernel"
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
 # ensure presence of /usr/lib64 to avoid potential bugs later
@@ -562,17 +584,23 @@ fi
 # note: refactored because a symlink breaks glibs builds, while a missing lib64 breaks many target packages' pkgconfig
 if [ ! -e /usr/lib64/pkgconfig ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	if [ ! -e /usr/lib64 ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		mkdir -p /usr/lib64
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
 	ln -s ../lib/pkgconfig /usr/lib64/pkgconfig
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
 # symlink to latest available kernel sources
 if [ -h /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 CHROOT_RESUME_LINENO="$LINENO"
 ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/`ls -1v /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src | grep linux- | tail -n 1` \
@@ -580,15 +608,19 @@ ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/`ls -1v /usr/${CROSSDEV_TARG
 CHROOT_RESUME_LINENO="0"
 
 cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
-if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ] && [ ! -e ${BUILD_CONF}/split.initramfs ]
+if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	# use target kernel .config
 	cp ${BUILD_CONF}/linux.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux/.config
-	CHROOT_RESUME_LINENO="$LINENO"
-	sed -i -e "s#CONFIG_INITRAMFS_SOURCE=\"\"#CONFIG_INITRAMFS_SOURCE=\"/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs\"#" \
-		/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux/.config
-	CHROOT_RESUME_LINENO="0"
+
+	if [ ! -e ${BUILD_CONF}/split.initramfs ]
+	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		sed -i -e "s#CONFIG_INITRAMFS_SOURCE=\"\"#CONFIG_INITRAMFS_SOURCE=\"/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs\"#" \
+			/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux/.config
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+	fi
 
 	# update target kernel .config for current kernel version and prepare sources for emerge checks
 	# TODO: support sys-kernel/gentoo-kernel[-bin] and dracut
@@ -606,25 +638,35 @@ cat /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/ld.so.conf.d/* /usr/${CROSSDEV_TAR
 # TODO: support toybox in embedded gentoo
 if [ -e ${BUILD_CONF}/busybox-mini.config ]
 then
-		export BOX_CHOICE="busybox"
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	export BOX_CHOICE="busybox"
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 elif [ -e ${BUILD_CONF}/toybox-mini.config ]
 then
-		export BOX_CHOICE="toybox"
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	export BOX_CHOICE="toybox"
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	if [ ! -d /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		mkdir -p /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
 
 	if [ -e ${BUILD_CONF}/busybox.config ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		cp ${BUILD_CONF}/busybox.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/busybox
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	elif [ -e ${BUILD_CONF}/toybox.config ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		cp ${BUILD_CONF}/toybox.config /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/toybox
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
@@ -649,6 +691,7 @@ CHROOT_RESUME_LINENO="0"
 
 sed -i -e 's@^sys-libs/pam@#sys-libs/pam@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.use/pam
 
+CHROOT_RESUME_LINENO="$LINENO"
 # order/sort extra package containers by dependency on one another
 WORLD_TREE=""
 if [ -d ${BUILD_CONF}/worlds/tree ]
@@ -693,6 +736,7 @@ then
 		fi
 	done
 fi
+CHROOT_RESUME_LINENO="0"
 export WORLD_TREE="${WORLD_TREE}"
 
 # build / update crossdev target world
@@ -741,6 +785,7 @@ PATCH_SQUASHFS="no"
 # create crossdev target final base build directory
 if [ ! -e ../squashfs ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	if [ -e "${BUILD_CONF}/base.patch" ]
 	then
 		PATCH_SQUASHFS="yes"
@@ -755,6 +800,7 @@ then
 	ln -s usr/bin ../squashfs/bin
 	ln -s usr/bin ../squashfs/sbin
 	#touch ../squashfs/etc/{group,passwd,shadow}
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
 # uncomment crossdev target INSTALL_MASK (needed for embedded gentoo)
@@ -785,7 +831,9 @@ then
 	#set +e
 	if [ -d ../squashfs/var/db/pkg ]
 	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		rmdir ../squashfs/var/db/pkg
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
 	#set -e
 	mv ../squashfs.exclude/pkg.base ../squashfs/var/db/pkg
@@ -801,10 +849,14 @@ fi
 # copy target portage configuration from cross-build environment to final build directory
 if [ ! -e ../squashfs/etc ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir -p ../squashfs/etc
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 elif [ -d ../squashfs/etc/portage ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm -rf ../squashfs/etc/portage
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 mkdir -p ../squashfs/etc/portage
 cp -a /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/* ../squashfs/etc/portage
@@ -858,7 +910,9 @@ cd ../squashfs
 # note: is this mkdir required, considering the code below?
 if [ ! -e lib/udev/hwdb.d ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mkdir -p lib/udev/hwdb.d
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 #set +e
 #mv usr/${CROSSDEV_TARGET}/lib/udev/hwdb.d/* lib/udev/hwdb.d/
@@ -872,6 +926,7 @@ if [ -e usr/${CROSSDEV_TARGET}.${BUILD_NAME} ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cd usr/${CROSSDEV_TARGET}.${BUILD_NAME}
+	CHROOT_RESUME_LINENO="$LINENO"
 	for i in `find . -type f,l`
 	do
 		if [ ! -d ../../`dirname ${i}` ]
@@ -880,6 +935,7 @@ then
 		fi
 		mv "${i}" "../../${i}"
 	done
+	CHROOT_RESUME_LINENO="0"
 	cd ../..
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
@@ -971,6 +1027,7 @@ else
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
+CHROOT_RESUME_LINENO="$LINENO"
 # loop through sorted extra package container list and create each image
 for world_img in ${WORLD_TREE}
 do
@@ -986,7 +1043,6 @@ do
 	# TODO: refactor for crossdev stage3 build compatibility (done?)
 	if [ ! -e ../squashfs.${world_img} ]
 	then
-		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		mkdir -p ../squashfs.${world_img}/var/db
 		cp -a ../squashfs.exclude/pkg.${WORLD_BASE} ../squashfs.${world_img}/var/db/pkg
 		mkdir -p ../squashfs.${world_img}/var/lib/portage
@@ -1003,7 +1059,6 @@ do
 	# prepare final build extra packages directory if present from build history
 	# TODO: avoid letting errors pass (done?)
 	else
-		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		mkdir ../squashfs.exclude/pkg.tmp
 		mount -t tmpfs tmpfs ../squashfs.exclude/pkg.tmp
 		mkdir ../squashfs.exclude/pkg.tmp/{b,e,w,u,m}
@@ -1031,7 +1086,6 @@ do
 		rm -rf pkg.tmp
 		mv pkg.${world_img} "${BUILD_DATE}/pkg.${world_img}.old"
 	fi
-	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 
 	# copy target portage configuration from cross-build environment to final build extra packages directory
 	if [ ! -e ../squashfs.${world_img}/etc ]
@@ -1048,10 +1102,8 @@ do
 	mount -o bind ../squashfs/etc ../squashfs.${world_img}/etc
 
 	# install binpkg files in final build extra packages directory
-	CHROOT_RESUME_LINENO="$LINENO"
 	FEATURES="-collision-protect" ${CROSSDEV_TARGET}-emerge --root=../squashfs.${world_img} --config-root=../squashfs.${world_img} \
 		--sysroot=../squashfs.${world_img} -uDNKq --with-bdeps=y `cat ${BUILD_CONF}/worlds/${world_img}`
-	CHROOT_RESUME_LINENO="0"
 
 	# unmount base /etc from extra before depclean to avoid configuration file loss
 	umount ../squashfs.${world_img}/etc
@@ -1148,6 +1200,7 @@ do
 		cp -a ../squashfs.${world_img}/var/db/pkg ../squashfs.exclude/pkg.${world_img}
 	fi
 done
+CHROOT_RESUME_LINENO="0"
 #mv ../squashfs.extra/usr/share/gtk-doc ../squashfs.exclude/gtk-doc
 #mv ../squashfs.extra/usr/share/qemu/edk2-a* ../squashfs.exclude/
 #set -e
@@ -1156,13 +1209,17 @@ done
 # TODO: replace device nodes in configuration initramfs files with mounting a devtmpfs in the initramfs init script
 if [ -e ../initramfs ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm -rf ../initramfs
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 cp -r ${BUILD_CONF}/initramfs ../initramfs
 if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	chown -R 0:0 ../initramfs
 	chmod 700 ../initramfs/init
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
 # backup system busybox binpkg to build minimal initramfs busybox
@@ -1171,11 +1228,15 @@ mkdir /tmp/busybox /tmp/busybox-mini
 #set +e
 if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/${BOX_CHOICE}/${BOX_CHOICE}*.gpkg.tar | wc -l)" -gt "0" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mv /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/${BOX_CHOICE}/${BOX_CHOICE}*.gpkg.tar /tmp/busybox/
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep ${BOX_CHOICE} | wc -l)" -gt "1" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/${BOX_CHOICE}-*
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 #set -e
 # use minimal busybox configuration to build initramfs busybox
@@ -1194,11 +1255,15 @@ PORTAGE_CONFIGROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} emaint binhost -f
 #set +e
 if [ "$(ls -1 /tmp/busybox | wc -l)" -gt "0" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mv /tmp/busybox/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/packages/sys-apps/${BOX_CHOICE}/
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 if [ "$(ls -1 /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps | grep ${BOX_CHOICE} | wc -l)" -gt "0" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/savedconfig/sys-apps/${BOX_CHOICE}*
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 #set -e
 # extract minimal busybox binpkg and place static binary in initramfs
@@ -1210,10 +1275,14 @@ cd ${BOX_CHOICE}*
 tar xpf image.tar.zst
 if [ "${BOX_CHOICE}" = "busybox" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -a image/bin/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/bin/
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 elif [ "${BOX_CHOICE}" = "toybox" ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -a image/usr/bin/* /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/initramfs/bin/
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 rm -rf /tmp/busybox*
 
@@ -1276,16 +1345,21 @@ cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/squashfs
 #mksquashfs . ../initramfs/base -comp xz -b 1048576 -Xbcj ${SQUASH_BCJ} -Xdict-size 1048576
 if [ -e ../initramfs/base ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	rm ../initramfs/base
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 mksquashfs . ../initramfs/base -comp xz -b 1048576 -Xdict-size 1048576
 
 # separate userland base packages from kernel binary if triggered by target configuration
 if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ]
 then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	mv ../initramfs/base ../base-${BUILD_DATE}
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
+CHROOT_RESUME_LINENO="$LINENO"
 for world_img in ${WORLD_TREE}
 do
 	# go to final build extra packages directory and compress it
@@ -1305,6 +1379,7 @@ do
 		mv ../initramfs/${world_img} ../${world_img}-${BUILD_DATE}
 	fi
 done
+CHROOT_RESUME_LINENO="0"
 
 cd ../linux
 # rebuild kernel with updated initramfs including userland if triggered by target configuration
@@ -1418,12 +1493,12 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
+CHROOT_RESUME_LINENO="$LINENO"
 for world_img in ${WORLD_TREE}
 do
 	# copy userland extra packages to output directory if separate from kernel
 	if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
 	then
-		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		# raspberry pi location
 		if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 		then
@@ -1432,9 +1507,9 @@ do
 		else
 			cp ../${world_img}-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/${world_img}
 		fi
-		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
 done
+CHROOT_RESUME_LINENO="0"
 
 if [ -e ${BUILD_CONF}/split.initramfs ]
 then

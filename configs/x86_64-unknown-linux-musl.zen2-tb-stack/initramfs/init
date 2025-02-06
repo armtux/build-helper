@@ -64,7 +64,7 @@ then
 	SQUASH_TYPE="-t ${SQUASH_TYPE} "
 fi
 
-while ([ "${SQUASH_DEV}" != "none" ] && ([ "${SQUASH_TYPE}" != "9p" ] && [ ! -e "/dev/${SQUASH_DEV}" ])) || [ "${SQUASH_DEV}" = "none" ]
+while ([ "${SQUASH_DEV}" != "none" ] && ([ "${SQUASH_TYPE}" != "-t 9p " ] && [ ! -e "/dev/${SQUASH_DEV}" ])) || [ "${SQUASH_DEV}" = "none" ]
 do
 	umount /dev
 	sleep 2

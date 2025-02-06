@@ -1,0 +1,3 @@
+dev-qt/qtbase opengl
+dev-qt/qtmultimedia opengl
+dev-qt/qttools opengl

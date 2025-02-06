@@ -1,0 +1,14 @@
+dev-lang/python:3.12
+dev-python/cffi
+dev-python/jaraco-collections
+dev-python/jaraco-context
+dev-python/jaraco-functools
+dev-python/more-itertools
+dev-python/packaging
+dev-python/platformdirs
+dev-python/ply
+dev-python/pycparser
+dev-python/setuptools
+dev-python/setuptools-scm
+dev-python/trove-classifiers
+dev-python/wheel

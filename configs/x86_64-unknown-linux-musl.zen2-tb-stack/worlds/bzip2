@@ -1,1 +1,9 @@
 app-arch/bzip2
+app-crypt/libb2
+app-misc/mime-types
+dev-db/sqlite
+dev-libs/expat
+dev-libs/json-c
+dev-libs/libevent
+dev-libs/libffi
+sys-libs/gdbm

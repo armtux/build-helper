@@ -31,8 +31,6 @@ sys-devel/m4-1.4.19-r2
 sys-devel/gettext-0.23
 dev-lang/nasm-2.16.03
 
-dev-lang/python-3.12.8_p1
-
 #x11-libs/pixman-0.43.4
 
 #kernel
@@ -48,3 +46,5 @@ app-alternatives/lex-0-r1
 sys-devel/bison-3.8.2-r2
 sys-devel/flex-2.6.4-r6
 dev-build/make-4.4.1-r1
+
+x11-libs/libX11-1.8.10-r1
