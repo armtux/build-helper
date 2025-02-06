@@ -1,0 +1,12 @@
+diff -urN old/toys/pending/syslogd.c new/toys/pending/syslogd.c
+--- old/toys/pending/syslogd.c	2024-02-14 04:28:28.146553024 -0500
++++ new/toys/pending/syslogd.c	2024-02-14 04:29:25.431332683 -0500
+@@ -33,6 +33,8 @@
+ */
+ 
+ #define FOR_syslogd
++#define _GNU_SOURCE 1
++#define SYSLOG_NAMES 1
+ #include "toys.h"
+ 
+ // UNIX Sockets for listening

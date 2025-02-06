@@ -1,0 +1,5 @@
+[musl-local-mbp-tb-stack]
+location = /var/db/repos/portage-musl-mbp-tb-stack
+priority = 10
+masters = gentoo
+auto-sync = no

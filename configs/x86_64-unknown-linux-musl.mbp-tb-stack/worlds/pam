@@ -1,0 +1,5 @@
+gui-libs/greetd
+sys-auth/pam_u2f
+sys-auth/pambase
+sys-auth/passwdqc
+sys-libs/pam

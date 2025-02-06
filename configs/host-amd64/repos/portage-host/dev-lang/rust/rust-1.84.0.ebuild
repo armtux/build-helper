@@ -39,6 +39,9 @@ ALL_LLVM_TARGETS=( AArch64 AMDGPU ARC ARM AVR BPF CSKY DirectX Hexagon Lanai
 ALL_LLVM_TARGETS=( "${ALL_LLVM_TARGETS[@]/#/llvm_targets_}" )
 LLVM_TARGET_USEDEPS=${ALL_LLVM_TARGETS[@]/%/(-)?}
 
+# https://github.com/rust-lang/llvm-project/blob/rustc-1.84.0/llvm/CMakeLists.txt
+ALL_LLVM_EXPERIMENTAL_TARGETS=( ARC CSKY DirectX M68k SPIRV Xtensa )
+
 LICENSE="|| ( MIT Apache-2.0 ) BSD BSD-1 BSD-2 BSD-4"
 SLOT="${PV}"
 
@@ -269,6 +272,14 @@ src_configure() {
 	rust_build="$(rust_abi "${CBUILD}")"
 	rust_host="$(rust_abi "${CHOST}")"
 
+	LLVM_EXPERIMENTAL_TARGETS=()
+	for _x in "${ALL_LLVM_EXPERIMENTAL_TARGETS[@]}"; do
+		if use llvm_targets_${_x} ; then
+			LLVM_EXPERIMENTAL_TARGETS+=( ${_x} )
+		fi
+	done
+	LLVM_EXPERIMENTAL_TARGETS=${LLVM_EXPERIMENTAL_TARGETS[@]}
+
 	local cm_btype="$(usex debug DEBUG RELEASE)"
 	cat <<- _EOF_ > "${S}"/config.toml
 		# https://github.com/rust-lang/rust/issues/135358 (bug #947897)
@@ -280,7 +291,7 @@ src_configure() {
 		assertions = $(toml_usex debug)
 		ninja = true
 		targets = "${LLVM_TARGETS// /;}"
-		experimental-targets = ""
+		experimental-targets = "${LLVM_EXPERIMENTAL_TARGETS// /;}"
 		link-shared = $(toml_usex system-llvm)
 		$(if is_libcxx_linked; then
 			# https://bugs.gentoo.org/732632
@@ -462,31 +473,6 @@ src_configure() {
 		use llvm_targets_${cross_llvm_target} || die "need llvm_targets_${cross_llvm_target} target enabled"
 		command -v ${cross_toolchain}-gcc > /dev/null 2>&1 || die "need ${cross_toolchain} cross toolchain"
 
-		# we need tricks for rust cross targets with same architecture as CHOST
-		local CHOST_ARCH="$(echo ${CHOST} | cut -d '-' -f 1)"
-		local CHOST_LIBC="$(echo ${CHOST} | cut -d '-' -f 4)"
-		if [ "$(echo ${cross_toolchain} | cut -d '-' -f 1)" = "${CHOST_ARCH}" ] && \
-			[ "$(echo ${cross_toolchain} | cut -d '-' -f 4)" = "${CHOST_LIBC}" ]
-		then
-			if [ "$(echo ${cross_rust_target} | cut -d '-' -f 2)" = "crossdev" ]
-			then
-				local cross_rust_target_spec="$(echo ${cross_rust_target} | tr '-' '_')"
-				cp "${S}/compiler/rustc_target/src/spec/targets/$(rust_abi | tr '-' '_').rs" \
-					"${S}/compiler/rustc_target/src/spec/targets/${cross_rust_target_spec}.rs"
-				sed -i -e 's/-unknown-/-crossdev-/' "${S}/compiler/rustc_target/src/spec/targets/${cross_rust_target_spec}.rs"
-				sed -i -e "s/\(.*$(rust_abi).*\)/\1\n    \(\"${cross_rust_target}\", ${cross_rust_target_spec}\),/" \
-					"${S}/compiler/rustc_target/src/spec/mod.rs"
-				# use nightly to generate json for missing target JSON
-				# rust-nightly-stage0/bin/rustc -Z unstable-options --print target-spec-json --target x86_64-unknown-linux-musl | sed -e 's/^.*is-builtin.*$//' -e 's/^\(.*crt-static-default.*\)true\(.*\)$/\1false\2/'
-				#if ! use system-bootstrap
-				#then
-					cp "${FILESDIR}/${cross_rust_target}.json" "${S}/"
-				#fi
-			else
-				die "CHOST and CBUILD ARCH is the same, so your rust cross target must be ${ARCH}-crossdev-linux-$(elibc_musl ? echo musl : echo gnu)"
-			fi
-		fi
-
 		cat <<- _EOF_ >> "${S}"/config.toml
 			[target.${cross_rust_target}]
 			ar = "${cross_toolchain}-ar"
@@ -545,7 +531,7 @@ src_configure() {
 }
 
 src_compile() {
-	RUST_BACKTRACE=1 RUST_TARGET_PATH="${S}" "${EPYTHON}" ./x.py build -vvv --config="${S}"/config.toml -j$(makeopts_jobs) || die
+	RUST_BACKTRACE=1 "${EPYTHON}" ./x.py build -vvv --config="${S}"/config.toml -j$(makeopts_jobs) || die
 }
 
 src_test() {
@@ -601,7 +587,7 @@ src_test() {
 }
 
 src_install() {
-	DESTDIR="${D}" RUST_TARGET_PATH="${S}" "${EPYTHON}" ./x.py install -vv --config="${S}"/config.toml -j$(makeopts_jobs) || die
+	DESTDIR="${D}" "${EPYTHON}" ./x.py install -vv --config="${S}"/config.toml -j$(makeopts_jobs) || die
 
 	docompress /usr/lib/${PN}/${PV}/share/man/
 

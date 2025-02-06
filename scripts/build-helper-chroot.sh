@@ -522,6 +522,11 @@ then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
+# create target portage tmpdir if it doesn't exist
+TARGET_TMPDIR="$(grep -E '^PORTAGE_TMPDIR' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf | \
+		sed -e 's/PORTAGE_TMPDIR=//')"
+[ ! -e "${TARGET_TMPDIR}" ] && [ "${TARGET_TMPDIR}" != "" ] && mkdir -p "${TARGET_TMPDIR}"
+
 # build libc, baselayout, ncurses and binutils-libs before other packages
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \

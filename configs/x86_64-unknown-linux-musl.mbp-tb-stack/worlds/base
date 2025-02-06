@@ -1,0 +1,10 @@
+@world
+dev-libs/libbsd
+dev-libs/libusb
+dev-libs/openssl
+sys-apps/msr-tools
+sys-apps/toybox
+sys-firmware/intel-microcode
+sys-kernel/linux-firmware
+virtual/libudev
+virtual/libusb
