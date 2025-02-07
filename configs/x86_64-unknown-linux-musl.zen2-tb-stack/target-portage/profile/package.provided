@@ -13,7 +13,7 @@ sys-apps/coreutils-9.5
 sys-apps/shadow-4.14.8
 sys-apps/iproute2-6.11.0-r1
 sys-apps/net-tools-2.10
-sys-apps/pciutils-3.13.0
+#sys-apps/pciutils-3.13.0
 sys-apps/usbutils-017
 sys-apps/hwdata-0.383
 sys-apps/sed-4.9-r1

@@ -7,5 +7,6 @@ gui-wm/sway
 media-fonts/noto
 media-libs/libepoxy
 media-libs/libva-intel-driver
+sys-apps/pciutils
 x11-libs/libpciaccess
 x11-themes/adwaita-icon-theme

@@ -1417,10 +1417,10 @@ then
 	depmod -a -b . ${BUILD_KERNEL_VER}
 	cp -a ../squashfs/lib/{ld-,libc.so,libcrypt.so}* lib/
 	cp -a ../squashfs/lib/{libcrypto.so,libssl.so}* lib/
-	if [ -e ../squashfs.extra/bin/wrmsr ]
+	if [ -e ../squashfs/bin/wrmsr ]
 	then
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-		cp -a ../squashfs.extra/bin/{rd,wr}msr bin/
+		cp -a ../squashfs/bin/{rd,wr}msr bin/
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
 	find . -print0 | cpio -0 -H newc -v -o | gzip --best > ../initramfs-${BUILD_DATE}

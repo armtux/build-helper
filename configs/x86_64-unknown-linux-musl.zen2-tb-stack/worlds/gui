@@ -6,5 +6,6 @@ gui-apps/swaylock
 gui-wm/sway
 media-fonts/noto
 media-libs/libepoxy
+sys-apps/pciutils
 x11-libs/libpciaccess
 x11-themes/adwaita-icon-theme

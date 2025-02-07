@@ -2,6 +2,7 @@
 dev-libs/libbsd
 dev-libs/libusb
 dev-libs/openssl
+net-misc/dhcpcd
 sys-apps/msr-tools
 sys-apps/toybox
 sys-firmware/intel-microcode
