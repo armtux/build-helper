@@ -4,36 +4,67 @@ build-helper
 # table of contents
 
 1. [description](#description)
+
 1.1 [supported flavours](#supported-flavours)
+
 1.2 [stacked/split overlay filesystem support](#stackedsplit-overlay-filesystem-support)
+
 1.3 [unified single-file installation](#unified-single-file-installation)
+
 1.4 [build history](#build-history)
+
 2. [usage](#usage)
+
 2.1 [for one of the included targets](#for-one-of-the-included-targets)
+
 2.2 [for more than one target in parallel](#for-more-than-one-target-in-parallel)
+
 2.3 [editing](#editing)
+
 2.4 [run either of these commands depending on desired target(s)](#run-either-of-these-commands-depending-on-desired-targets)
+
 3. [work flow (what to expect)](#work-flow-what-to-expect)
+
 3.1 [first run (complete build)](#first-run-complete-build)
+
 3.2 [update runs (using saved history files)](#update-runs-using-saved-history-files)
+
 3.3 ["config" squashfs image for each finished build](#config-squashfs-image-for-each-finished-build)
+
 4. [description of relevant global environment variables](#description-of-relevant-global-environment-variables)
+
 5. [description of specific target configuration files and customization options](#description-of-specific-target-configuration-files-and-customization-options)
+
 5.1 [build-arch (file; required)](#build-arch-file-required)
+
 5.2 [initramfs (directory; required)](#initramfs-directory-required)
+
 5.3 [linux.config (file; optional)](#linux.config-file-optional)
+
 5.4 [repos (directory; required, but optionally without ebuilds or eclasses)](#repos-directory-required-but-optionally-without-ebuilds-or-eclasses)
+
 5.5 [skip.mrproper (empty file; optional)](#skip.mrproper-empty-file-optional)
+
 5.6 [split.base (empty file; optional)](#split.base-empty-file-optional)
+
 5.7 [split.extra (empty file; optional)](#split.extra-empty-file-optional)
+
 5.8 [split.initramfs (empty file; optional)](#split.initramfs-empty-file-optional)
+
 5.9 [target-portage (directory; required)](#target-portage-directory-required)
+
 5.10 [toybox-mini.config OR busybox-mini.config (file; required)](#toybox-mini.config-or-busybox-mini.config-file-required)
+
 5.11 [toybox.config OR busybox.config (file; optional)](#toybox.config-or-busybox.config-file-optional)
+
 5.12 [worlds and worlds/tree (directory tree; required)](#worlds-and-worldstree-directory-tree-required)
+
 6. [reduced LLVM_TARGETS flags per supported architecture](#reduced-llvm_targets-flags-per-supported-architecture)
+
 7. [configuring the rust cross-compiler](#configuring-the-rust-cross-compiler)
+
 8. [note on circular dependencies](#note-on-circular-dependencies)
+
 9. [final installation structure](#final-installation-structure)
 
 Gentoo Linux crossdev installation builder
