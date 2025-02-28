@@ -22,7 +22,7 @@ then
 	export BUILD_HIST='no'
 fi
 
-HELPER_CMD="./build-helper.sh x86_64-unknown-linux-musl:x86_64-unknown-linux-musl mbp-tb-stack:zen2-tb-stack"
+HELPER_CMD="./build-helper.sh x86_64-unknown-linux-musl:x86_64-unknown-linux-musl:x86_64-unknown-linux-gnu mbp-tb-stack:zen2-tb-stack:zen2-tb-slim"
 
 if [ "${TERM_PROGRAM}" = "tmux" ]
 then

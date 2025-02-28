@@ -362,6 +362,46 @@ cp -L /etc/resolv.conf etc/resolv.conf
 mkdir -p "${MNT_PATH}/b"
 mount -o bind "${MNT_PATH}/m" "${MNT_PATH}/b"
 
+# this is needed for building new rust targets before the target foreach loop
+TARGET_COUNT="0"
+for target in `echo ${1} | sed -e 's/:/ /g'`
+do
+	# increment which input target to prepare
+	TARGET_COUNT="$((${TARGET_COUNT} + 1))"
+
+	# set unique target variables
+	export CROSSDEV_TARGET="${target}"
+	export BUILD_NAME="`echo ${2} | cut -d ':' -f ${TARGET_COUNT}`"
+	export BUILD_CONF="${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}"
+	export BUILD_PKGS="${BUILD_HELPER_TREE}/packages/${CROSSDEV_TARGET}.${BUILD_NAME}"
+
+	# create target portage tmpdir if it doesn't exist
+	TARGET_TMPDIR="$(grep -E '^PORTAGE_TMPDIR' ${BUILD_CONF}/target-portage/make.conf | \
+			sed -e 's/PORTAGE_TMPDIR=\///')"
+	[ ! -e "${TARGET_TMPDIR}" ] && [ "${TARGET_TMPDIR}" != "" ] && mkdir -p "${TARGET_TMPDIR}"
+
+	# bind mounts for target ebuild repositories
+	for i in `ls -1 ${BUILD_CONF}/repos`
+	do
+		if [ ! -e var/db/repos/${i} ]
+		then
+			mkdir var/db/repos/${i}
+		fi
+		mount -o bind ${BUILD_CONF}/repos/${i} var/db/repos/${i}
+	done
+
+	# bind mount for accessing target binpkg directory in chroot
+	if [ ! -e ${BUILD_PKGS} ]
+	then
+		mkdir -p ${BUILD_PKGS}
+	fi
+	if [ ! -e .${BUILD_PKGS} ]
+	then
+		mkdir -p .${BUILD_PKGS}
+	fi
+	mount -o bind ${BUILD_PKGS} .${BUILD_PKGS}
+done
+
 # this is where we begin the target foreach loop
 TARGET_COUNT="0"
 for target in `echo ${1} | sed -e 's/:/ /g'`
@@ -402,14 +442,6 @@ do
 		cp ../../m/tmp/cross_ready.${CROSSDEV_TARGET} tmp/
 	fi
 
-	# bind mount for target configuration files
-	# note: testing mounting all configurations for each build (needed for chroot build environment logic)
-	#if [ ! -e .${BUILD_CONF} ]
-	#then
-	#	mkdir -p .${BUILD_CONF}
-	#fi
-	#mount -o bind ${BUILD_CONF} .${BUILD_CONF}
-
 	# bind mounts for target ebuild repositories
 	for i in `ls -1 ${BUILD_CONF}/repos`
 	do
@@ -419,6 +451,14 @@ do
 		fi
 		mount -o bind ${BUILD_CONF}/repos/${i} var/db/repos/${i}
 	done
+
+	# bind mount for target configuration files
+	# note: testing mounting all configurations for each build (needed for chroot build environment logic)
+	#if [ ! -e .${BUILD_CONF} ]
+	#then
+	#	mkdir -p .${BUILD_CONF}
+	#fi
+	#mount -o bind ${BUILD_CONF} .${BUILD_CONF}
 
 	# bind mount for accessing target binpkg directory in chroot
 	if [ ! -e ${BUILD_PKGS} ]

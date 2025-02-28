@@ -1,0 +1,5 @@
+[gnu-local-zen2-tb-slim]
+location = /var/db/repos/portage-gnu-zen2-tb-slim
+priority = 10
+masters = gentoo
+auto-sync = no

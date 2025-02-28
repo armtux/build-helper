@@ -1,0 +1,21 @@
+diff '--color=auto' -urN old/util/rcu.c new/util/rcu.c
+--- old/util/rcu.c	2025-02-25 18:22:06.643215371 +0000
++++ new/util/rcu.c	2025-02-25 18:23:47.544518473 +0000
+@@ -174,7 +174,7 @@
+ }
+ 
+ 
+-#define RCU_CALL_MIN_SIZE        30
++#define RCU_CALL_MIN_SIZE        1
+ 
+ /* Multi-producer, single-consumer queue based on urcu/static/wfqueue.h
+  * from liburcu.  Note that head is only used by the consumer.
+@@ -267,7 +267,7 @@
+          * added before synchronize_rcu() starts.
+          */
+         while (n == 0 || (n < RCU_CALL_MIN_SIZE && ++tries <= 5)) {
+-            g_usleep(10000);
++            g_usleep(1000);
+             if (n == 0) {
+                 qemu_event_reset(&rcu_call_ready_event);
+                 n = qatomic_read(&rcu_call_count);

@@ -1,0 +1,13 @@
+diff --git a/src/gallium/winsys/iris/drm/iris_drm_winsys.c b/src/gallium/winsys/iris/drm/iris_drm_winsys.c
+index 3f1fc8d21a54..eb6180948a5d 100644
+--- a/src/gallium/winsys/iris/drm/iris_drm_winsys.c
++++ b/src/gallium/winsys/iris/drm/iris_drm_winsys.c
+@@ -54,7 +54,7 @@ iris_drm_probe_nctx(int fd, const struct virgl_renderer_capset_drm *caps)
+    if (debug_get_bool_option("INTEL_VIRTIO_DISABLE", false))
+       return false;
+ 
+-   if (debug_get_bool_option("INTEL_VIRTIO_SKIP_HW_VERSION_CHECK", false))
++   if (debug_get_bool_option("INTEL_VIRTIO_SKIP_HW_VERSION_CHECK", true))
+       return true;
+ 
+    struct intel_device_info devinfo;

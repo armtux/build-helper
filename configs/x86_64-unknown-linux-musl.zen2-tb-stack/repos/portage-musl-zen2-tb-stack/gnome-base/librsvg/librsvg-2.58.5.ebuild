@@ -378,6 +378,8 @@ multilib_src_configure() {
 			# far as C parts and configure auto-detection are concerned as CHOST equals CBUILD
 			cross_compiling=yes
 		)
+		echo "[target.${CHOST}]" >> ${WORKDIR}/cargo_home/config.toml
+		echo "linker = ${CHOST}-gcc" >> ${WORKDIR}/cargo_home/config.toml
 	fi
 
 	ECONF_SOURCE=${S} \

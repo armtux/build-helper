@@ -1,0 +1,32 @@
+From 64be1910373790c1b568ba50c7d2ad702d768c63 Mon Sep 17 00:00:00 2001
+From: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+Date: Sun, 26 Jan 2025 18:37:00 +0300
+Subject: [PATCH] docs/system: virtio-gpu: Update Venus link
+
+Change virtio-gpu Venus link, pointing it at the Mesa Venus
+documentation instead of the protocol. The Mesa doc provides more
+information and also has a link to the protocol.
+
+Suggested-by: Akihiko Odaki <akihiko.odaki@daynix.com>
+Reviewed-by: Akihiko Odaki <akihiko.odaki@daynix.com>
+Signed-off-by: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+---
+ docs/system/devices/virtio-gpu.rst | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/docs/system/devices/virtio-gpu.rst b/docs/system/devices/virtio-gpu.rst
+index f8963c1f13c..ea3eb052df3 100644
+--- a/docs/system/devices/virtio-gpu.rst
++++ b/docs/system/devices/virtio-gpu.rst
+@@ -81,7 +81,7 @@ of virtio-gpu host memory window. This is typically between 256M and 8G.
+ .. parsed-literal::
+     -device virtio-gpu-gl,hostmem=8G,blob=true,venus=true
+ 
+-.. _venus: https://gitlab.freedesktop.org/virgl/venus-protocol/
++.. _venus: https://docs.mesa3d.org/drivers/venus.html
+ 
+ DRM native context is supported since release of `virglrenderer`_ v1.0.0
+ using `drm`_ protocol.  ``DRM`` virtio-gpu capability set ("capset") requires
+-- 
+GitLab
+

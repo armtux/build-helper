@@ -1,0 +1,2065 @@
+From 722bc876d79914aaa6699d367de3795ff8cbfa60 Mon Sep 17 00:00:00 2001
+From: Dmitry Osipenko <digetx@gmail.com>
+Date: Mon, 20 May 2024 14:04:15 +0300
+Subject: [PATCH 1/3] intel: Check for userptr UAPI presence
+
+Check whether userptr UAPI presents and disable userptr features if not.
+Kernel i915 driver has config option that disables userptr ioctl. The
+ioctl also may not present in a case of virtio native context driver.
+
+Signed-off-by: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+---
+ src/gallium/drivers/crocus/crocus_screen.c |  2 +-
+ src/gallium/drivers/iris/iris_screen.c     |  2 +-
+ src/intel/dev/i915/intel_device_info.c     | 15 +++++++++++++++
+ src/intel/dev/intel_device_info.py         |  1 +
+ src/intel/dev/xe/intel_device_info.c       |  1 +
+ src/intel/vulkan/anv_physical_device.c     |  2 +-
+ src/intel/vulkan_hasvk/anv_device.c        |  2 +-
+ 7 files changed, 21 insertions(+), 4 deletions(-)
+
+diff --git a/src/gallium/drivers/crocus/crocus_screen.c b/src/gallium/drivers/crocus/crocus_screen.c
+index 6f48c7e66fed6..7160c00e1c4a6 100644
+--- a/src/gallium/drivers/crocus/crocus_screen.c
++++ b/src/gallium/drivers/crocus/crocus_screen.c
+@@ -476,7 +476,7 @@ crocus_init_screen_caps(struct crocus_screen *screen)
+     * extensive checking in the driver for correctness, e.g. to prevent
+     * illegal snoop <-> snoop transfers.
+     */
+-   caps->resource_from_user_memory = devinfo->has_llc;
++   caps->resource_from_user_memory = devinfo->has_llc && devinfo->has_userptr_uapi;
+    caps->throttle = !screen->driconf.disable_throttling;
+ 
+    caps->context_priority_mask =
+diff --git a/src/gallium/drivers/iris/iris_screen.c b/src/gallium/drivers/iris/iris_screen.c
+index 2cca976c28af6..5422f2e977d6e 100644
+--- a/src/gallium/drivers/iris/iris_screen.c
++++ b/src/gallium/drivers/iris/iris_screen.c
+@@ -512,7 +512,7 @@ iris_init_screen_caps(struct iris_screen *screen)
+     * extensive checking in the driver for correctness, e.g. to prevent
+     * illegal snoop <-> snoop transfers.
+     */
+-   caps->resource_from_user_memory = devinfo->has_llc;
++   caps->resource_from_user_memory = devinfo->has_llc && devinfo->has_userptr_uapi;
+    caps->throttle = !screen->driconf.disable_throttling;
+ 
+    caps->context_priority_mask =
+diff --git a/src/intel/dev/i915/intel_device_info.c b/src/intel/dev/i915/intel_device_info.c
+index 18ed1222e0374..c881130f8c32d 100644
+--- a/src/intel/dev/i915/intel_device_info.c
++++ b/src/intel/dev/i915/intel_device_info.c
+@@ -501,6 +501,20 @@ has_get_tiling(int fd)
+    return ret == 0;
+ }
+ 
++static bool
++has_userptr(int fd)
++{
++   struct drm_i915_gem_userptr userptr = {
++      .user_ptr = 0,
++      .user_size = 0,
++      .flags = 0,
++   };
++
++   intel_ioctl(fd, DRM_IOCTL_I915_GEM_USERPTR, &userptr);
++
++   return errno == EINVAL;
++}
++
+ static void
+ fixup_chv_device_info(struct intel_device_info *devinfo)
+ {
+@@ -606,6 +620,7 @@ bool intel_device_info_i915_get_info_from_fd(int fd, struct intel_device_info *d
+    intel_get_aperture_size(fd, &devinfo->aperture_bytes);
+    get_context_param(fd, 0, I915_CONTEXT_PARAM_GTT_SIZE, &devinfo->gtt_size);
+    devinfo->has_tiling_uapi = has_get_tiling(fd);
++   devinfo->has_userptr_uapi = has_userptr(fd);
+    devinfo->has_caching_uapi =
+       devinfo->platform < INTEL_PLATFORM_DG2_START && !devinfo->has_local_mem;
+    if (devinfo->ver > 12 || intel_device_info_is_mtl_or_arl(devinfo))
+diff --git a/src/intel/dev/intel_device_info.py b/src/intel/dev/intel_device_info.py
+index 0591bb0f83ee6..6b988ab930e2f 100644
+--- a/src/intel/dev/intel_device_info.py
++++ b/src/intel/dev/intel_device_info.py
+@@ -307,6 +307,7 @@ Struct("intel_device_info",
+         Member("bool", "has_indirect_unroll"),
+         Member("bool", "has_negative_rhw_bug", compiler_field=True,
+                comment="Intel hardware quirks"),
++        Member("bool", "has_userptr_uapi"),
+ 
+         Member("bool", "has_coarse_pixel_primitive_and_cb", compiler_field=True,
+                comment=dedent("""\
+diff --git a/src/intel/dev/xe/intel_device_info.c b/src/intel/dev/xe/intel_device_info.c
+index a497cbfe63b50..3c57f99c0184b 100644
+--- a/src/intel/dev/xe/intel_device_info.c
++++ b/src/intel/dev/xe/intel_device_info.c
+@@ -353,6 +353,7 @@ intel_device_info_xe_get_info_from_fd(int fd, struct intel_device_info *devinfo)
+    devinfo->has_mmap_offset = true;
+    devinfo->has_caching_uapi = false;
+    devinfo->has_set_pat_uapi = true;
++   devinfo->has_userptr_uapi = true;
+ 
+    return true;
+ }
+diff --git a/src/intel/vulkan/anv_physical_device.c b/src/intel/vulkan/anv_physical_device.c
+index a91ea236a2dc6..3347aa6873ade 100644
+--- a/src/intel/vulkan/anv_physical_device.c
++++ b/src/intel/vulkan/anv_physical_device.c
+@@ -275,7 +275,7 @@ get_device_extensions(const struct anv_physical_device *device,
+       .EXT_extended_dynamic_state2           = true,
+       .EXT_extended_dynamic_state3           = true,
+       .EXT_external_memory_dma_buf           = true,
+-      .EXT_external_memory_host              = true,
++      .EXT_external_memory_host              = device->info.has_userptr_uapi,
+       .EXT_fragment_shader_interlock         = true,
+       .EXT_global_priority                   = device->max_context_priority >=
+                                                VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR,
+diff --git a/src/intel/vulkan_hasvk/anv_device.c b/src/intel/vulkan_hasvk/anv_device.c
+index eb78045740cb0..0dbc26d58eb83 100644
+--- a/src/intel/vulkan_hasvk/anv_device.c
++++ b/src/intel/vulkan_hasvk/anv_device.c
+@@ -294,7 +294,7 @@ get_device_extensions(const struct anv_physical_device *device,
+       .EXT_extended_dynamic_state            = true,
+       .EXT_extended_dynamic_state2           = true,
+       .EXT_external_memory_dma_buf           = true,
+-      .EXT_external_memory_host              = true,
++      .EXT_external_memory_host              = device->info.has_userptr_uapi,
+       .EXT_global_priority                   = device->max_context_priority >=
+                                                INTEL_CONTEXT_MEDIUM_PRIORITY,
+       .EXT_global_priority_query             = device->max_context_priority >=
+-- 
+GitLab
+
+
+From c8a33352426304c0d9a51b41e6da85f40b65544b Mon Sep 17 00:00:00 2001
+From: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+Date: Sat, 20 Jul 2024 20:07:54 +0300
+Subject: [PATCH 2/3] intel: Add virtio-gpu native context
+
+Support virtio-intel native DRM context. Virtio-intel works by passing
+ioctl's from guest to host for execution, utilizing available VirtIO-GPU
+infrastructure.
+
+This patch adds initial experimental native context support for TigerLake+
+GPUs using i915 KMD UAPI.
+
+Compile Mesa with -Dintel-virtio-experimental=true to enable virtio-intel
+native context support.
+
+Signed-off-by: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+---
+ meson.build                                   |   5 +
+ meson_options.txt                             |   7 +
+ .../auxiliary/target-helpers/drm_helper.h     |   4 +-
+ .../drivers/iris/i915/iris_kmd_backend.c      |   5 +
+ src/gallium/drivers/iris/iris_bufmgr.c        |   5 +
+ src/gallium/drivers/iris/iris_screen.c        |   4 +
+ src/gallium/drivers/iris/iris_screen.h        |   1 +
+ src/gallium/winsys/iris/drm/iris_drm_public.h |   6 +
+ src/gallium/winsys/iris/drm/iris_drm_winsys.c |  38 ++
+ src/gallium/winsys/iris/drm/meson.build       |   1 +
+ src/intel/common/intel_gem.h                  |  10 +-
+ src/intel/dev/intel_device_info.c             |  48 +-
+ src/intel/dev/intel_kmd.c                     |   5 +
+ src/intel/dev/meson.build                     |  22 +-
+ src/intel/dev/virtio/i915_proto.h             | 170 ++++++
+ src/intel/dev/virtio/i915_virtio_ccmd.c       | 565 ++++++++++++++++++
+ .../dev/virtio/i915_virtio_ccmd_execbuf.c     | 185 ++++++
+ src/intel/dev/virtio/intel_virtio.h           |  52 ++
+ src/intel/dev/virtio/intel_virtio_bo.c        |  22 +
+ src/intel/dev/virtio/intel_virtio_device.c    | 148 +++++
+ src/intel/dev/virtio/intel_virtio_priv.h      |  65 ++
+ src/intel/perf/intel_perf.c                   |   5 +
+ src/intel/vulkan/anv_device.c                 |   9 +-
+ src/intel/vulkan/anv_physical_device.c        |  24 +-
+ src/intel/vulkan/anv_private.h                |   1 +
+ src/intel/vulkan/i915/anv_kmd_backend.c       |   4 +
+ src/meson.build                               |   6 +-
+ src/virtio/virtio-gpu/drm_hw.h                |   9 +
+ 28 files changed, 1395 insertions(+), 31 deletions(-)
+ create mode 100644 src/intel/dev/virtio/i915_proto.h
+ create mode 100644 src/intel/dev/virtio/i915_virtio_ccmd.c
+ create mode 100644 src/intel/dev/virtio/i915_virtio_ccmd_execbuf.c
+ create mode 100644 src/intel/dev/virtio/intel_virtio.h
+ create mode 100644 src/intel/dev/virtio/intel_virtio_bo.c
+ create mode 100644 src/intel/dev/virtio/intel_virtio_device.c
+ create mode 100644 src/intel/dev/virtio/intel_virtio_priv.h
+
+diff --git a/meson.build b/meson.build
+index bb2c5d11067fa..fd00cc0adb1f1 100644
+--- a/meson.build
++++ b/meson.build
+@@ -337,6 +337,11 @@ with_any_intel = [
+ ].contains(true)
+ with_any_nouveau = with_gallium_nouveau or with_nouveau_vk
+ 
++with_intel_virtio = get_option('intel-virtio-experimental')
++if with_intel_virtio
++  pre_args += '-DHAVE_INTEL_VIRTIO'
++endif
++
+ # needed in the loader
+ if with_nouveau_vk
+   pre_args += '-DHAVE_NVK'
+diff --git a/meson_options.txt b/meson_options.txt
+index 18ca6854bd5b8..6e926f8def3ea 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -786,3 +786,10 @@ option(
+   value : false,
+   description : 'Install the drivers internal shader compilers (if needed for cross builds).'
+ )
++
++option(
++  'intel-virtio-experimental',
++  type : 'boolean',
++  value : false,
++  description : 'use experimental virtio backend for intel driver',
++)
+diff --git a/src/gallium/auxiliary/target-helpers/drm_helper.h b/src/gallium/auxiliary/target-helpers/drm_helper.h
+index 3ddab30af496c..d4e9e6881eae4 100644
+--- a/src/gallium/auxiliary/target-helpers/drm_helper.h
++++ b/src/gallium/auxiliary/target-helpers/drm_helper.h
+@@ -95,6 +95,7 @@ DRM_DRIVER_DESCRIPTOR_STUB(i915)
+ 
+ #ifdef GALLIUM_IRIS
+ #include "iris/drm/iris_drm_public.h"
++#include "virtio/virtio-gpu/virglrenderer_hw.h"
+ 
+ static struct pipe_screen *
+ pipe_iris_create_screen(int fd, const struct pipe_screen_config *config)
+@@ -108,7 +109,8 @@ pipe_iris_create_screen(int fd, const struct pipe_screen_config *config)
+ const driOptionDescription iris_driconf[] = {
+       #include "iris/driinfo_iris.h"
+ };
+-DRM_DRIVER_DESCRIPTOR(iris, iris_driconf, ARRAY_SIZE(iris_driconf))
++DRM_DRIVER_DESCRIPTOR(iris, iris_driconf, ARRAY_SIZE(iris_driconf),
++                      .probe_nctx = iris_drm_probe_nctx)
+ 
+ #else
+ DRM_DRIVER_DESCRIPTOR_STUB(iris)
+diff --git a/src/gallium/drivers/iris/i915/iris_kmd_backend.c b/src/gallium/drivers/iris/i915/iris_kmd_backend.c
+index 11c8f6c2993b2..2bce82b1248df 100644
+--- a/src/gallium/drivers/iris/i915/iris_kmd_backend.c
++++ b/src/gallium/drivers/iris/i915/iris_kmd_backend.c
+@@ -174,6 +174,8 @@ i915_bo_set_caching(struct iris_bo *bo, bool cached)
+ static void *
+ i915_gem_mmap_offset(struct iris_bufmgr *bufmgr, struct iris_bo *bo)
+ {
++   int fd = iris_bufmgr_get_fd(bufmgr);
++
+    struct drm_i915_gem_mmap_offset mmap_arg = {
+       .handle = bo->gem_handle,
+    };
+@@ -215,6 +217,9 @@ i915_gem_mmap_offset(struct iris_bufmgr *bufmgr, struct iris_bo *bo)
+       return NULL;
+    }
+ 
++   if (is_intel_virtio_fd(fd))
++      return intel_virtio_bo_mmap(fd, bo->gem_handle, bo->size);
++
+    /* And map it */
+    void *map = mmap(0, bo->size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                     iris_bufmgr_get_fd(bufmgr), mmap_arg.offset);
+diff --git a/src/gallium/drivers/iris/iris_bufmgr.c b/src/gallium/drivers/iris/iris_bufmgr.c
+index d315e73f8745f..7340c9ccda982 100644
+--- a/src/gallium/drivers/iris/iris_bufmgr.c
++++ b/src/gallium/drivers/iris/iris_bufmgr.c
+@@ -1881,6 +1881,8 @@ iris_bufmgr_destroy(struct iris_bufmgr *bufmgr)
+ 
+    iris_bufmgr_destroy_global_vm(bufmgr);
+ 
++   intel_virtio_unref_fd(bufmgr->fd);
++
+    close(bufmgr->fd);
+ 
+    simple_mtx_unlock(&bufmgr->lock);
+@@ -2341,6 +2343,8 @@ iris_bufmgr_create(struct intel_device_info *devinfo, int fd, bool bo_reuse)
+    if (bufmgr->fd == -1)
+       goto error_dup;
+ 
++   intel_virtio_ref_fd(bufmgr->fd);
++
+    p_atomic_set(&bufmgr->refcount, 1);
+ 
+    simple_mtx_init(&bufmgr->lock, mtx_plain);
+@@ -2508,6 +2512,7 @@ error_bucket_cache:
+       util_vma_heap_finish(&bufmgr->vma_allocator[i]);
+    iris_bufmgr_destroy_global_vm(bufmgr);
+ error_init_vm:
++   intel_virtio_unref_fd(bufmgr->fd);
+    close(bufmgr->fd);
+ error_dup:
+    free(bufmgr);
+diff --git a/src/gallium/drivers/iris/iris_screen.c b/src/gallium/drivers/iris/iris_screen.c
+index 5422f2e977d6e..2c0aeca94f22e 100644
+--- a/src/gallium/drivers/iris/iris_screen.c
++++ b/src/gallium/drivers/iris/iris_screen.c
+@@ -590,6 +590,7 @@ iris_screen_destroy(struct iris_screen *screen)
+    u_transfer_helper_destroy(screen->base.transfer_helper);
+    iris_bufmgr_unref(screen->bufmgr);
+    disk_cache_destroy(screen->disk_cache);
++   intel_virtio_unref_fd(screen->winsys_fd);
+    close(screen->winsys_fd);
+    ralloc_free(screen);
+ }
+@@ -736,6 +737,9 @@ iris_screen_create(int fd, const struct pipe_screen_config *config)
+       break;
+    }
+ 
++   if (intel_virtio_init_fd(fd) < 0)
++      return NULL;
++
+    process_intel_debug_variable();
+ 
+    screen->bufmgr = iris_bufmgr_get_for_fd(fd, bo_reuse);
+diff --git a/src/gallium/drivers/iris/iris_screen.h b/src/gallium/drivers/iris/iris_screen.h
+index 86e5e0be2352b..b75b78a72781b 100644
+--- a/src/gallium/drivers/iris/iris_screen.h
++++ b/src/gallium/drivers/iris/iris_screen.h
+@@ -29,6 +29,7 @@
+ #include "util/slab.h"
+ #include "util/u_screen.h"
+ #include "intel/dev/intel_device_info.h"
++#include "intel/dev/virtio/intel_virtio.h"
+ #include "intel/isl/isl.h"
+ #include "iris_bufmgr.h"
+ #include "iris_binder.h"
+diff --git a/src/gallium/winsys/iris/drm/iris_drm_public.h b/src/gallium/winsys/iris/drm/iris_drm_public.h
+index f942e05ad8b54..2a74009169140 100644
+--- a/src/gallium/winsys/iris/drm/iris_drm_public.h
++++ b/src/gallium/winsys/iris/drm/iris_drm_public.h
+@@ -24,10 +24,16 @@
+ #ifndef IRIS_DRM_PUBLIC_H
+ #define IRIS_DRM_PUBLIC_H
+ 
++#include <stdbool.h>
++
+ struct pipe_screen;
+ struct pipe_screen_config;
++struct virgl_renderer_capset_drm;
+ 
+ struct pipe_screen *
+ iris_drm_screen_create(int drm_fd, const struct pipe_screen_config *config);
+ 
++bool
++iris_drm_probe_nctx(int fd, const struct virgl_renderer_capset_drm *caps);
++
+ #endif /* IRIS_DRM_PUBLIC_H */
+diff --git a/src/gallium/winsys/iris/drm/iris_drm_winsys.c b/src/gallium/winsys/iris/drm/iris_drm_winsys.c
+index 15095e2d3faaa..3f1fc8d21a546 100644
+--- a/src/gallium/winsys/iris/drm/iris_drm_winsys.c
++++ b/src/gallium/winsys/iris/drm/iris_drm_winsys.c
+@@ -21,11 +21,16 @@
+  * IN THE SOFTWARE.
+  */
+ 
++#include <stdint.h>
+ #include <unistd.h>
+ #include <fcntl.h>
+ 
++#include "intel/dev/intel_device_info.h"
++
+ #include "util/os_file.h"
+ 
++#include "virtio/virtio-gpu/drm_hw.h"
++
+ #include "iris_drm_public.h"
+ extern struct pipe_screen *iris_screen_create(int fd, const struct pipe_screen_config *config);
+ 
+@@ -34,3 +39,36 @@ iris_drm_screen_create(int fd, const struct pipe_screen_config *config)
+ {
+    return iris_screen_create(fd, config);
+ }
++
++/**
++ * Check if the native-context type exposed by virtgpu is one we
++ * support, and that we support the underlying device.
++ */
++bool
++iris_drm_probe_nctx(int fd, const struct virgl_renderer_capset_drm *caps)
++{
++#ifdef HAVE_INTEL_VIRTIO
++   if (caps->context_type != VIRTGPU_DRM_CONTEXT_I915)
++      return false;
++
++   if (debug_get_bool_option("INTEL_VIRTIO_DISABLE", false))
++      return false;
++
++   if (debug_get_bool_option("INTEL_VIRTIO_SKIP_HW_VERSION_CHECK", false))
++      return true;
++
++   struct intel_device_info devinfo;
++
++   if (!intel_get_device_info_from_pci_id(caps->u.intel.pci_device_id,
++                                          &devinfo))
++      return false;
++
++   /* untested with hardware before Tiger Lake */
++   if (devinfo.ver < 12)
++      return false;
++
++   return true;
++#else
++   return false;
++#endif
++}
+diff --git a/src/gallium/winsys/iris/drm/meson.build b/src/gallium/winsys/iris/drm/meson.build
+index 1ed56b2e8cd71..5757bb43febfd 100644
+--- a/src/gallium/winsys/iris/drm/meson.build
++++ b/src/gallium/winsys/iris/drm/meson.build
+@@ -10,4 +10,5 @@ libiriswinsys = static_library(
+   ],
+   gnu_symbol_visibility : 'hidden',
+   dependencies: idep_mesautil,
++  link_with : [libintel_dev],
+ )
+diff --git a/src/intel/common/intel_gem.h b/src/intel/common/intel_gem.h
+index 1fd3ba82d6f13..dafd5a7ee6866 100644
+--- a/src/intel/common/intel_gem.h
++++ b/src/intel/common/intel_gem.h
+@@ -71,6 +71,10 @@ intel_48b_address(uint64_t v)
+    return (uint64_t)(v << shift) >> shift;
+ }
+ 
++#ifdef HAVE_INTEL_VIRTIO
++extern int intel_virtio_ioctl(int fd, unsigned long request, void *arg);
++#endif
++
+ /**
+  * Call ioctl, restarting if it is interrupted
+  */
+@@ -80,7 +84,11 @@ intel_ioctl(int fd, unsigned long request, void *arg)
+     int ret;
+ 
+     do {
+-        ret = ioctl(fd, request, arg);
++#ifdef HAVE_INTEL_VIRTIO
++      ret = intel_virtio_ioctl(fd, request, arg);
++#else
++      ret = ioctl(fd, request, arg);
++#endif
+     } while (ret == -1 && (errno == EINTR || errno == EAGAIN));
+     return ret;
+ }
+diff --git a/src/intel/dev/intel_device_info.c b/src/intel/dev/intel_device_info.c
+index 3cfa68d813d59..9a054bbe915ed 100644
+--- a/src/intel/dev/intel_device_info.c
++++ b/src/intel/dev/intel_device_info.c
+@@ -35,6 +35,7 @@
+ #include "intel_wa.h"
+ #include "i915/intel_device_info.h"
+ #include "xe/intel_device_info.h"
++#include "virtio/intel_virtio.h"
+ 
+ #include "common/intel_gem.h"
+ #include "util/u_debug.h"
+@@ -1889,29 +1890,38 @@ intel_get_device_info_from_fd(int fd, struct intel_device_info *devinfo, int min
+     * rely on an ioctl to get PCI device id for the next step when skipping
+     * this drm query.
+     */
+-   drmDevicePtr drmdev = NULL;
+-   if (drmGetDevice2(fd, DRM_DEVICE_GET_PCI_REVISION, &drmdev)) {
+-      mesa_loge("Failed to query drm device.");
+-      return false;
+-   }
+-   if (!intel_device_info_init_common(drmdev->deviceinfo.pci->device_id,
+-                                      false, devinfo)) {
++   if (is_intel_virtio_fd(fd)) {
++      if (!intel_virtio_get_pci_device_info(fd, devinfo))
++         return false;
++
++      if (!intel_device_info_init_common(devinfo->pci_device_id,
++                                         false, devinfo)) {
++         return false;
++      }
++   } else {
++      drmDevicePtr drmdev = NULL;
++      if (drmGetDevice2(fd, DRM_DEVICE_GET_PCI_REVISION, &drmdev)) {
++         mesa_loge("Failed to query drm device.");
++         return false;
++      }
++         if (!intel_device_info_init_common(drmdev->deviceinfo.pci->device_id,
++                                            false, devinfo)) {
++         drmFreeDevice(&drmdev);
++         return false;
++      }
++
++      devinfo->pci_domain = drmdev->businfo.pci->domain;
++      devinfo->pci_bus = drmdev->businfo.pci->bus;
++      devinfo->pci_dev = drmdev->businfo.pci->dev;
++      devinfo->pci_func = drmdev->businfo.pci->func;
++      devinfo->pci_device_id = drmdev->deviceinfo.pci->device_id;
++      devinfo->pci_revision_id = drmdev->deviceinfo.pci->revision_id;
+       drmFreeDevice(&drmdev);
+-      return false;
+    }
+-   
+-   if ((min_ver > 0 && devinfo->ver < min_ver) || (max_ver > 0 && devinfo->ver > max_ver)) {
+-      drmFreeDevice(&drmdev);
++
++   if ((min_ver > 0 && devinfo->ver < min_ver) || (max_ver > 0 && devinfo->ver > max_ver))
+       return false;
+-   }
+ 
+-   devinfo->pci_domain = drmdev->businfo.pci->domain;
+-   devinfo->pci_bus = drmdev->businfo.pci->bus;
+-   devinfo->pci_dev = drmdev->businfo.pci->dev;
+-   devinfo->pci_func = drmdev->businfo.pci->func;
+-   devinfo->pci_device_id = drmdev->deviceinfo.pci->device_id;
+-   devinfo->pci_revision_id = drmdev->deviceinfo.pci->revision_id;
+-   drmFreeDevice(&drmdev);
+    devinfo->no_hw = debug_get_bool_option("INTEL_NO_HW", false);
+ 
+    devinfo->kmd_type = intel_get_kmd_type(fd);
+diff --git a/src/intel/dev/intel_kmd.c b/src/intel/dev/intel_kmd.c
+index 63bb443424a8b..2459f3bba2c92 100644
+--- a/src/intel/dev/intel_kmd.c
++++ b/src/intel/dev/intel_kmd.c
+@@ -24,6 +24,8 @@
+ #include <string.h>
+ #include "util/libdrm.h"
+ 
++#include "virtio/intel_virtio.h"
++
+ #include "intel_kmd.h"
+ 
+ enum intel_kmd_type
+@@ -32,6 +34,9 @@ intel_get_kmd_type(int fd)
+    enum intel_kmd_type type = INTEL_KMD_TYPE_INVALID;
+    drmVersionPtr version = drmGetVersion(fd);
+ 
++   if (is_intel_virtio_fd(fd))
++      type = INTEL_KMD_TYPE_I915;
++
+    if (!version)
+       return type;
+ 
+diff --git a/src/intel/dev/meson.build b/src/intel/dev/meson.build
+index f9b1f6c9f4098..5085af1b8ef3e 100644
+--- a/src/intel/dev/meson.build
++++ b/src/intel/dev/meson.build
+@@ -18,6 +18,25 @@ files_libintel_dev = files(
+   'intel_kmd.h',
+ )
+ 
++inc_intel_dev_virtio = []
++link_intel_dev_virtio = []
++
++if with_intel_virtio
++files_libintel_dev += files(
++  'virtio/intel_virtio_bo.c',
++  'virtio/intel_virtio_device.c',
++  'virtio/i915_virtio_ccmd.c',
++  'virtio/i915_virtio_ccmd_execbuf.c',
++)
++
++inc_intel_dev_virtio += [
++  inc_virtio_gpu,
++  inc_virtio_vdrm,
++]
++
++link_intel_dev_virtio += [ libvdrm ]
++endif
++
+ intel_dev_wa_src = custom_target('intel_wa.[ch]',
+                                  input : ['gen_wa_helpers.py', 'mesa_defs.json'],
+                                  output : ['intel_wa.h', 'intel_wa.c'],
+@@ -43,11 +62,12 @@ idep_intel_dev_info_gen = declare_dependency(sources : [intel_dev_info_gen_src[0
+ libintel_dev = static_library(
+   'intel_dev',
+   [files_libintel_dev, sha1_h, [intel_dev_wa_src]],
+-  include_directories : [inc_include, inc_src, inc_intel],
++  include_directories : [inc_include, inc_src, inc_intel, inc_intel_dev_virtio],
+   dependencies : [dep_libdrm, idep_mesautil, idep_intel_dev_wa,
+                   idep_intel_dev_info_gen],
+   c_args : [no_override_init_args],
+   gnu_symbol_visibility : 'hidden',
++  link_with : [link_intel_dev_virtio],
+ )
+ 
+ idep_intel_dev = declare_dependency(
+diff --git a/src/intel/dev/virtio/i915_proto.h b/src/intel/dev/virtio/i915_proto.h
+new file mode 100644
+index 0000000000000..12fc993da6451
+--- /dev/null
++++ b/src/intel/dev/virtio/i915_proto.h
+@@ -0,0 +1,170 @@
++/*
++ * Copyright 2024 Collabora, Ltd.
++ * SPDX-License-Identifier: MIT
++ */
++
++#ifndef I915_VIRTIO_PROTO_H_
++#define I915_VIRTIO_PROTO_H_
++
++#define DEFINE_CAST(parent, child)                                             \
++   static inline struct child *to_##child(const struct parent *x)              \
++   {                                                                           \
++      return (struct child *)x;                                                \
++   }
++
++enum i915_ccmd {
++   I915_CCMD_IOCTL_SIMPLE = 1,
++   I915_CCMD_GETPARAM,
++   I915_CCMD_QUERYPARAM,
++   I915_CCMD_GEM_CREATE,
++   I915_CCMD_GEM_CREATE_EXT,
++   I915_CCMD_GEM_CONTEXT_CREATE,
++   I915_CCMD_GEM_EXECBUFFER2,
++   I915_CCMD_GEM_SET_MMAP_MODE,
++};
++
++#define I915_CCMD(_cmd, _len) (struct vdrm_ccmd_req){    \
++       .cmd = I915_CCMD_##_cmd,                          \
++       .len = (_len),                                    \
++   }
++
++/*
++ * I915_CCMD_IOCTL_SIMPLE
++ */
++struct i915_ccmd_ioctl_simple_req {
++   struct vdrm_ccmd_req hdr;
++
++   uint32_t cmd;
++   uint32_t pad;
++   uint8_t payload[];
++};
++DEFINE_CAST(vdrm_ccmd_req, i915_ccmd_ioctl_simple_req)
++
++struct i915_ccmd_ioctl_simple_rsp {
++   struct vdrm_ccmd_rsp hdr;
++
++   int32_t ret;
++   uint32_t pad;
++   uint8_t payload[];
++};
++
++/*
++ * I915_CCMD_GETPARAM
++ */
++struct i915_ccmd_getparam_req {
++   struct vdrm_ccmd_req hdr;
++
++   uint32_t param;
++   uint32_t value;
++};
++DEFINE_CAST(vdrm_ccmd_req, i915_ccmd_getparam_req)
++
++struct i915_ccmd_getparam_rsp {
++   struct vdrm_ccmd_rsp hdr;
++
++   int32_t ret;
++   uint32_t value;
++};
++
++/*
++ * I915_CCMD_QUERYPARAM
++ */
++struct i915_ccmd_queryparam_req {
++   struct vdrm_ccmd_req hdr;
++
++   uint32_t query_id;
++   uint32_t length;
++   uint32_t flags;
++   uint32_t pad;
++};
++DEFINE_CAST(vdrm_ccmd_req, i915_ccmd_queryparam_req)
++
++struct i915_ccmd_queryparam_rsp {
++   struct vdrm_ccmd_rsp hdr;
++
++   int32_t ret;
++   int32_t length;
++   uint8_t payload[];
++};
++
++/*
++ * I915_CCMD_GEM_CONTEXT_CREATE
++ */
++struct i915_ccmd_gem_context_create_req {
++   struct vdrm_ccmd_req hdr;
++
++   uint32_t flags;
++   uint32_t params_size;
++   uint8_t payload[];
++};
++DEFINE_CAST(vdrm_ccmd_req, i915_ccmd_gem_context_create_req)
++
++struct i915_ccmd_gem_context_create_rsp {
++   struct vdrm_ccmd_rsp hdr;
++
++   int32_t ret;
++   uint32_t ctx_id;
++};
++
++/*
++ * I915_CCMD_GEM_CREATE
++ */
++struct i915_ccmd_gem_create_req {
++   struct vdrm_ccmd_req hdr;
++
++   uint64_t size;
++   uint32_t blob_id;
++   uint32_t __pad;
++};
++DEFINE_CAST(vdrm_ccmd_req, i915_ccmd_gem_create_req)
++
++/*
++ * I915_CCMD_GEM_CREATE_EXT
++ */
++struct i915_ccmd_gem_create_ext_req {
++   struct vdrm_ccmd_req hdr;
++
++   uint64_t size;
++   uint32_t blob_id;
++   uint32_t gem_flags;
++   uint32_t ext_size;
++   uint32_t pad;
++   uint8_t payload[];
++};
++DEFINE_CAST(vdrm_ccmd_req, i915_ccmd_gem_create_ext_req)
++
++/*
++ * I915_CCMD_GEM_EXECBUFFER2
++ */
++struct i915_ccmd_gem_execbuffer2_req {
++   struct vdrm_ccmd_req hdr;
++
++   uint64_t flags;
++   uint64_t context_id;
++   uint32_t buffer_count;
++   uint32_t batch_start_offset;
++   uint32_t batch_len;
++   uint32_t pad;
++
++   uint8_t payload[];
++};
++DEFINE_CAST(vdrm_ccmd_req, i915_ccmd_gem_execbuffer2_req)
++
++struct i915_ccmd_gem_execbuffer2_rsp {
++   struct vdrm_ccmd_rsp hdr;
++
++   int32_t ret;
++};
++
++/*
++ * I915_CCMD_GEM_SET_MMAP_MODE
++ */
++struct i915_ccmd_gem_set_mmap_mode_req {
++   struct vdrm_ccmd_req hdr;
++
++   uint32_t res_id;
++   uint32_t flags;
++};
++DEFINE_CAST(vdrm_ccmd_req, i915_ccmd_gem_set_mmap_mode_req)
++
++#endif /* I915_VIRTIO_PROTO_H_ */
+diff --git a/src/intel/dev/virtio/i915_virtio_ccmd.c b/src/intel/dev/virtio/i915_virtio_ccmd.c
+new file mode 100644
+index 0000000000000..9f351fc1c3c9b
+--- /dev/null
++++ b/src/intel/dev/virtio/i915_virtio_ccmd.c
+@@ -0,0 +1,565 @@
++/*
++ * Copyright 2024 Collabora, Ltd.
++ * SPDX-License-Identifier: MIT
++ */
++
++#include "intel_virtio_priv.h"
++#include "i915_proto.h"
++
++static int
++i915_virtio_simple_ioctl(struct intel_virtio_device *dev,
++                          unsigned cmd, void *_req)
++{
++   unsigned req_len = sizeof(struct i915_ccmd_ioctl_simple_req);
++   unsigned rsp_len = sizeof(struct i915_ccmd_ioctl_simple_rsp);
++   bool sync = !!(cmd & IOC_OUT);
++   int err;
++
++   req_len += _IOC_SIZE(cmd);
++   if (cmd & IOC_OUT)
++      rsp_len += _IOC_SIZE(cmd);
++
++   uint8_t buf[req_len];
++   struct i915_ccmd_ioctl_simple_req *req = (void *)(uintptr_t)buf;
++   struct i915_ccmd_ioctl_simple_rsp *rsp;
++
++   req->hdr = I915_CCMD(IOCTL_SIMPLE, req_len);
++   req->cmd = cmd;
++   memcpy(req->payload, _req, _IOC_SIZE(cmd));
++
++   rsp = vdrm_alloc_rsp(dev->vdrm, &req->hdr, rsp_len);
++
++   err = vdrm_send_req(dev->vdrm, &req->hdr, sync);
++   if (err)
++      return errno;
++
++   if (cmd & IOC_OUT) {
++      memcpy(_req, rsp->payload, _IOC_SIZE(cmd));
++      return rsp->ret;
++   }
++
++   return 0;
++}
++
++static int
++i915_virtio_queryparam(struct intel_virtio_device *dev,
++                       struct drm_i915_query *query)
++{
++   struct drm_i915_query_item *item = (void *)(uintptr_t)query->items_ptr;
++   struct i915_ccmd_queryparam_rsp *rsp;
++   struct i915_ccmd_queryparam_req req;
++   int err;
++
++   if (query->num_items != 1) {
++      mesa_loge("unsupported number of query items");
++      return EINVAL;
++   }
++
++   req.hdr = I915_CCMD(QUERYPARAM, sizeof(req));
++   req.query_id = item->query_id;
++   req.length = item->length;
++   req.flags = item->flags;
++
++   rsp = vdrm_alloc_rsp(dev->vdrm, &req.hdr, sizeof(*rsp) + item->length);
++
++   err = vdrm_send_req(dev->vdrm, &req.hdr, true);
++   if (err)
++      return errno;
++
++   if (item->data_ptr && rsp->length > 0)
++      memcpy((void *)(uintptr_t)item->data_ptr, rsp->payload, rsp->length);
++
++   item->length = rsp->length;
++
++   return rsp->ret;
++}
++
++static int
++i915_virtio_getparam(struct intel_virtio_device *dev,
++                     struct drm_i915_getparam *gp)
++{
++   struct i915_ccmd_getparam_rsp *rsp;
++   struct i915_ccmd_getparam_req req;
++   int err;
++
++   req.hdr = I915_CCMD(GETPARAM, sizeof(req));
++   req.param = gp->param;
++
++   rsp = vdrm_alloc_rsp(dev->vdrm, &req.hdr, sizeof(*rsp));
++
++   err = vdrm_send_req(dev->vdrm, &req.hdr, true);
++   if (err)
++      return errno;
++
++   *gp->value = rsp->value;
++
++   return rsp->ret;
++}
++
++static int
++i915_virtio_gem_create(struct intel_virtio_device *dev,
++                       struct drm_i915_gem_create *create)
++{
++   uint32_t blob_flags = VIRTGPU_BLOB_FLAG_USE_MAPPABLE |
++                         VIRTGPU_BLOB_FLAG_USE_SHAREABLE;
++
++   if (dev->supports_cross_device)
++      blob_flags |= VIRTGPU_BLOB_FLAG_USE_CROSS_DEVICE;
++
++   struct i915_ccmd_gem_create_req req = {
++      .hdr = I915_CCMD(GEM_CREATE, sizeof(req)),
++      .size = create->size,
++   };
++
++   /* tunneled cmds are processed separately on host side,
++    * before the renderer->get_blob() callback.. the blob_id
++    * is used to like the created bo to the get_blob() call
++    */
++   req.blob_id = p_atomic_inc_return(&dev->next_blob_id);
++
++   int ret = vdrm_bo_create(dev->vdrm, create->size, blob_flags,
++                            req.blob_id, &req.hdr);
++   if (!ret)
++      return EINVAL;
++
++   create->handle = ret;
++
++   return 0;
++}
++
++static int
++i915_virtio_gem_create_ext(struct intel_virtio_device *dev,
++                           struct drm_i915_gem_create_ext *create)
++{
++   struct i915_user_extension *extension = (void *)(uintptr_t)create->extensions;
++   unsigned ext_size = 0;
++   void *payload_ptr;
++
++   while (extension) {
++      switch (extension->name) {
++      case I915_GEM_CREATE_EXT_MEMORY_REGIONS:
++      {
++         struct drm_i915_gem_create_ext_memory_regions *mem_regions;
++
++         mem_regions = (void*)(uintptr_t)extension;
++         ext_size += sizeof(*mem_regions);
++         ext_size += sizeof(struct drm_i915_gem_memory_class_instance) * mem_regions->num_regions;
++         break;
++      }
++
++      case I915_GEM_CREATE_EXT_PROTECTED_CONTENT:
++         ext_size += sizeof(struct drm_i915_gem_create_ext_protected_content);
++         break;
++
++      default:
++         mesa_loge("unsupported extension");
++         return EINVAL;
++      }
++
++      extension = (void *)(uintptr_t)extension->next_extension;
++   }
++
++   unsigned req_len = sizeof(struct i915_ccmd_gem_create_ext_req);
++   req_len += ext_size;
++
++   uint8_t buf[req_len];
++   struct i915_ccmd_gem_create_ext_req *req = (void *)(uintptr_t)buf;
++
++   extension = (void *)(uintptr_t)create->extensions;
++   payload_ptr = req->payload;
++
++   while (extension) {
++      switch (extension->name) {
++      case I915_GEM_CREATE_EXT_MEMORY_REGIONS:
++      {
++         struct drm_i915_gem_create_ext_memory_regions *mem_regions;
++         struct drm_i915_gem_memory_class_instance *instances;
++
++         mem_regions = (void*)(uintptr_t)extension;
++         instances = (void*)(uintptr_t)mem_regions->regions;
++
++         memcpy(payload_ptr, mem_regions, sizeof(*mem_regions));
++         payload_ptr += sizeof(*mem_regions);
++
++         memcpy(payload_ptr, instances, sizeof(*instances) * mem_regions->num_regions);
++         payload_ptr += sizeof(*instances) * mem_regions->num_regions;
++         break;
++      }
++
++      case I915_GEM_CREATE_EXT_PROTECTED_CONTENT:
++         memcpy(payload_ptr, extension, sizeof(struct drm_i915_gem_create_ext_protected_content));
++         payload_ptr += sizeof(struct drm_i915_gem_create_ext_protected_content);
++         break;
++
++      default:
++         mesa_loge("unsupported extension");
++         return EINVAL;
++      }
++
++      extension = (void *)(uintptr_t)extension->next_extension;
++   }
++
++   req->hdr = I915_CCMD(GEM_CREATE_EXT, req_len);
++   req->gem_flags = create->flags;
++   req->ext_size = ext_size;
++   req->size = create->size;
++
++   uint32_t blob_flags = VIRTGPU_BLOB_FLAG_USE_MAPPABLE |
++                         VIRTGPU_BLOB_FLAG_USE_SHAREABLE;
++
++   if (dev->supports_cross_device)
++      blob_flags |= VIRTGPU_BLOB_FLAG_USE_CROSS_DEVICE;
++
++   /* tunneled cmds are processed separately on host side,
++    * before the renderer->get_blob() callback.. the blob_id
++    * is used to like the created bo to the get_blob() call
++    */
++   req->blob_id = p_atomic_inc_return(&dev->next_blob_id);
++
++   int ret = vdrm_bo_create(dev->vdrm, create->size, blob_flags,
++                            req->blob_id, &req->hdr);
++   if (!ret)
++      return EINVAL;
++
++   create->handle = ret;
++
++   return 0;
++}
++
++static int
++i915_virtio_gem_close(struct intel_virtio_device *dev,
++                      struct drm_gem_close *close)
++{
++   vdrm_bo_close(dev->vdrm, close->handle);
++   return 0;
++}
++
++static int
++i915_virtio_gem_context_create_ext(struct intel_virtio_device *dev,
++                                   struct drm_i915_gem_context_create_ext *create)
++{
++   struct drm_i915_gem_context_create_ext_setparam *setparam;
++   struct i915_ccmd_gem_context_create_rsp *rsp;
++   unsigned params_size = 0;
++   void *payload_ptr;
++   int err;
++
++   if (!(create->flags & I915_CONTEXT_CREATE_FLAGS_USE_EXTENSIONS))
++      return i915_virtio_simple_ioctl(dev, DRM_IOCTL_I915_GEM_CONTEXT_CREATE,
++                                      create);
++
++   setparam = (void *)(uintptr_t)create->extensions;
++
++   while (setparam) {
++      switch (setparam->param.param) {
++      case I915_CONTEXT_PARAM_BAN_PERIOD:
++      case I915_CONTEXT_PARAM_NO_ZEROMAP:
++      case I915_CONTEXT_PARAM_GTT_SIZE:
++      case I915_CONTEXT_PARAM_NO_ERROR_CAPTURE:
++      case I915_CONTEXT_PARAM_BANNABLE:
++      case I915_CONTEXT_PARAM_PRIORITY:
++      case I915_CONTEXT_PARAM_SSEU:
++      case I915_CONTEXT_PARAM_RECOVERABLE:
++      case I915_CONTEXT_PARAM_VM:
++      case I915_CONTEXT_PARAM_ENGINES:
++      case I915_CONTEXT_PARAM_PERSISTENCE:
++      case I915_CONTEXT_PARAM_RINGSIZE:
++      case I915_CONTEXT_PARAM_PROTECTED_CONTENT:
++         break;
++
++      default:
++         mesa_loge("unsupported context param");
++         return EINVAL;
++      }
++
++      params_size += sizeof(*setparam) + setparam->param.size;
++      setparam = (void *)(uintptr_t)setparam->base.next_extension;
++   }
++
++   unsigned req_len = sizeof(struct i915_ccmd_gem_context_create_req);
++   req_len += params_size;
++
++   uint8_t buf[req_len];
++   struct i915_ccmd_gem_context_create_req *req = (void *)(uintptr_t)buf;
++
++   setparam = (void *)(uintptr_t)create->extensions;
++   payload_ptr = req->payload;
++
++   while (setparam) {
++      memcpy(payload_ptr, setparam, sizeof(*setparam));
++      payload_ptr += sizeof(*setparam);
++
++      if (setparam->param.size) {
++         memcpy(payload_ptr, (void*)(uintptr_t)setparam->param.value,
++                setparam->param.size);
++         payload_ptr += setparam->param.size;
++      }
++
++      setparam = (void *)(uintptr_t)setparam->base.next_extension;
++   }
++
++   req->hdr = I915_CCMD(GEM_CONTEXT_CREATE, req_len);
++   req->params_size = params_size;
++   req->flags = create->flags;
++
++   rsp = vdrm_alloc_rsp(dev->vdrm, &req->hdr, sizeof(*rsp));
++
++   err = vdrm_send_req(dev->vdrm, &req->hdr, true);
++   if (err)
++      return errno;
++
++   create->ctx_id = rsp->ctx_id;
++
++   return rsp->ret;
++}
++
++static int
++i915_virtio_gem_context_param(struct intel_virtio_device *dev,
++                              unsigned long cmd,
++                              struct drm_i915_gem_context_param *param)
++{
++   switch (param->param) {
++   case I915_CONTEXT_PARAM_RECOVERABLE:
++   case I915_CONTEXT_PARAM_PRIORITY:
++   case I915_CONTEXT_PARAM_GTT_SIZE:
++   case I915_CONTEXT_PARAM_VM:
++      return i915_virtio_simple_ioctl(dev, cmd, param);
++
++   default:
++      mesa_loge("unsupported context param");
++      return EINVAL;
++   }
++}
++
++static int
++intel_virtio_ioctl_errno(int fd, unsigned long cmd, void *req)
++{
++   int err = ioctl(fd, cmd, req);
++   if (!err)
++      errno = 0;
++
++   return errno;
++}
++
++static int
++i915_virtio_gem_busy(struct intel_virtio_device *dev,
++                     struct drm_i915_gem_busy *busy)
++{
++   struct drm_virtgpu_3d_wait virt_wait = {
++      .handle = busy->handle,
++      .flags = VIRTGPU_WAIT_NOWAIT,
++   };
++
++   intel_virtio_ioctl_errno(dev->fd, DRM_IOCTL_VIRTGPU_WAIT, &virt_wait);
++
++   if (errno == EBUSY) {
++      errno = 0;
++      busy->busy = 1;
++   } else if (!errno) {
++      busy->busy = 0;
++   }
++
++   return errno;
++}
++
++static int
++i915_virtio_gem_wait(struct intel_virtio_device *dev,
++                     struct drm_i915_gem_wait *wait)
++{
++   struct drm_virtgpu_3d_wait virt_wait = { .handle = wait->bo_handle };
++
++   if (!wait->timeout_ns)
++      virt_wait.flags = VIRTGPU_WAIT_NOWAIT;
++
++   intel_virtio_ioctl_errno(dev->fd, DRM_IOCTL_VIRTGPU_WAIT, &virt_wait);
++
++   if (errno == EBUSY)
++      errno = ETIME;
++
++   return errno;
++}
++
++static int
++i915_virtio_simple_ioctl_gem_patched(struct intel_virtio_device *dev,
++                                     unsigned long cmd, void *req)
++{
++   uint32_t *handle = req;
++   uint32_t tmp_handle = *handle;
++
++   *handle = vdrm_handle_to_res_id(dev->vdrm, *handle);
++   errno = i915_virtio_simple_ioctl(dev, cmd, req);
++   *handle = tmp_handle;
++
++   return errno;
++}
++
++static int
++i915_virtio_gem_vm_control(struct intel_virtio_device *dev,
++                           unsigned long cmd,
++                           struct drm_i915_gem_vm_control *vm)
++{
++   if (vm->extensions) {
++      mesa_loge("unsupported vm extension");
++      return EINVAL;
++   }
++
++   if (vm->flags) {
++      mesa_loge("unsupported vm flags");
++      return EINVAL;
++   }
++
++   return i915_virtio_simple_ioctl(dev, cmd, vm);
++}
++
++static int
++i915_virtio_gem_mmap_offset(struct intel_virtio_device *dev,
++                            unsigned long cmd,
++                            struct drm_i915_gem_mmap_offset *mmap_offset)
++{
++   struct i915_ccmd_gem_set_mmap_mode_req req;
++   int err;
++
++   req.hdr = I915_CCMD(GEM_SET_MMAP_MODE, sizeof(req));
++   req.res_id = vdrm_handle_to_res_id(dev->vdrm, mmap_offset->handle);
++   req.flags = mmap_offset->flags;
++
++   err = vdrm_send_req(dev->vdrm, &req.hdr, false);
++   if (err)
++      return errno;
++
++   return 0;
++}
++
++int
++intel_virtio_ioctl(int fd, unsigned long cmd, void *req)
++{
++   struct intel_virtio_device *dev = fd_to_intel_virtio_device(fd);
++
++   if (!dev) {
++      /* this is a real phys device if not bound to virtio */
++      return intel_virtio_ioctl_errno(fd, cmd, req);
++   }
++
++   int orig_errno = errno;
++
++   /*
++    * Special case for legacy ioctls that have same NR as extended ioctl
++    * and need to be handled differently.
++    */
++   switch (cmd) {
++   case DRM_IOCTL_I915_GEM_CREATE:
++      errno = i915_virtio_gem_create(dev, req);
++      goto out;
++
++   case DRM_IOCTL_I915_GEM_CONTEXT_CREATE:
++      errno = i915_virtio_simple_ioctl(dev, cmd, req);
++      goto out;
++
++   default:
++      break;
++   }
++
++#define IOC_MASKED(IOC) ((IOC) & ~IOCSIZE_MASK)
++
++   /* DRM ioctls vary in size depending on a used UAPI header version */
++   switch (IOC_MASKED(cmd)) {
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_WAIT):
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_CREATE):
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_DESTROY):
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_RESET):
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_SIGNAL):
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_TIMELINE_SIGNAL):
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_TIMELINE_WAIT):
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_TRANSFER):
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_QUERY):
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_FD_TO_HANDLE):
++   case IOC_MASKED(DRM_IOCTL_SYNCOBJ_HANDLE_TO_FD):
++   case IOC_MASKED(DRM_IOCTL_PRIME_HANDLE_TO_FD):
++   case IOC_MASKED(DRM_IOCTL_PRIME_FD_TO_HANDLE):
++      errno = intel_virtio_ioctl_errno(dev->fd, cmd, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_CREATE_EXT):
++      errno = i915_virtio_gem_create_ext(dev, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GETPARAM):
++      errno = i915_virtio_getparam(dev, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_QUERY):
++      errno = i915_virtio_queryparam(dev, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_GEM_CLOSE):
++      errno = i915_virtio_gem_close(dev, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_CONTEXT_CREATE_EXT):
++      errno = i915_virtio_gem_context_create_ext(dev, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_CONTEXT_GETPARAM):
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_CONTEXT_SETPARAM):
++      errno = i915_virtio_gem_context_param(dev, cmd, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_EXECBUFFER2):
++      errno = i915_virtio_gem_execbuffer2(dev, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_MADVISE):
++   case IOC_MASKED(DRM_IOCTL_I915_GET_RESET_STATS):
++      /* TODO */
++      errno = 0;
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_REG_READ):
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_CONTEXT_DESTROY):
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_GET_APERTURE):
++      errno = i915_virtio_simple_ioctl(dev, cmd, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_GET_TILING):
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_SET_TILING):
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_SET_DOMAIN):
++      errno = i915_virtio_simple_ioctl_gem_patched(dev, cmd, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_BUSY):
++      errno = i915_virtio_gem_busy(dev, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_WAIT):
++      errno = i915_virtio_gem_wait(dev, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_VM_CREATE):
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_VM_DESTROY):
++      errno = i915_virtio_gem_vm_control(dev, cmd, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_MMAP_OFFSET):
++      errno = i915_virtio_gem_mmap_offset(dev, cmd, req);
++      break;
++
++   case IOC_MASKED(DRM_IOCTL_I915_GEM_USERPTR):
++      errno = ENODEV;
++      break;
++
++   default:
++      mesa_loge("unsupported ioctl 0x%lx\n", _IOC_NR(cmd));
++      errno = ENOTTY;
++      break;
++   }
++
++#undef IOC_MASKED
++
++out:
++   if (errno)
++      return -1;
++
++   errno = orig_errno;
++
++   return 0;
++}
+diff --git a/src/intel/dev/virtio/i915_virtio_ccmd_execbuf.c b/src/intel/dev/virtio/i915_virtio_ccmd_execbuf.c
+new file mode 100644
+index 0000000000000..56d93132796a2
+--- /dev/null
++++ b/src/intel/dev/virtio/i915_virtio_ccmd_execbuf.c
+@@ -0,0 +1,185 @@
++/*
++ * Copyright 2024 Collabora, Ltd.
++ * SPDX-License-Identifier: MIT
++ */
++
++#include "intel_virtio_priv.h"
++#include "i915_proto.h"
++
++struct virtio_gem_execbuffer_params {
++   struct intel_virtio_device *dev;
++   struct drm_i915_gem_execbuffer2 *exec;
++
++   struct drm_virtgpu_execbuffer_syncobj *in_syncobjs;
++   unsigned num_in_syncobjs;
++
++   struct drm_virtgpu_execbuffer_syncobj *out_syncobjs;
++   unsigned num_out_syncobjs;
++
++   uint32_t *bo_handles;
++   unsigned num_bo_handles;
++};
++
++static int
++i915_virtio_gem_execbuffer2_submit(struct virtio_gem_execbuffer_params *params)
++{
++   struct intel_virtio_device *dev = params->dev;
++   struct drm_i915_gem_execbuffer2 *exec = params->exec;
++   struct drm_i915_gem_exec_object2 *buffers = (void *)(uintptr_t)exec->buffers_ptr;
++   struct i915_ccmd_gem_execbuffer2_rsp *rsp;
++   uint64_t allowed_flags = 0, flags = exec->flags;
++
++   size_t buffers_size = sizeof(*buffers) * exec->buffer_count;
++
++   unsigned req_len = sizeof(struct i915_ccmd_gem_execbuffer2_req);
++   req_len += buffers_size;
++
++   uint8_t buf[req_len];
++   struct i915_ccmd_gem_execbuffer2_req *req = (void *)(uintptr_t)buf;
++   memcpy(req->payload, buffers, buffers_size);
++
++   uint32_t bo_handles[exec->buffer_count + 1];
++   buffers = (void *)(uintptr_t)req->payload;
++
++   for (int i = 0; i < exec->buffer_count; i++) {
++      if (buffers[i].relocation_count) {
++         mesa_loge("relocations unsupported");
++         return EINVAL;
++      }
++
++      bo_handles[i] = buffers[i].handle;
++      buffers[i].handle = vdrm_handle_to_res_id(dev->vdrm, buffers[i].handle);
++   }
++
++   params->bo_handles = bo_handles;
++   params->num_bo_handles = exec->buffer_count;
++
++   allowed_flags |= I915_EXEC_RING_MASK;
++   allowed_flags |= I915_EXEC_CONSTANTS_MASK;
++   allowed_flags |= I915_EXEC_GEN7_SOL_RESET;
++   allowed_flags |= I915_EXEC_NO_RELOC;
++   allowed_flags |= I915_EXEC_HANDLE_LUT;
++   allowed_flags |= I915_EXEC_BSD_MASK << I915_EXEC_BSD_SHIFT;
++   allowed_flags |= I915_EXEC_BATCH_FIRST;
++
++   /* XXX: sanity-check flags, might be removed in a release version */
++   if (flags & ~(allowed_flags | I915_EXEC_FENCE_ARRAY | I915_EXEC_USE_EXTENSIONS)) {
++      mesa_loge("unsupported flags");
++      return EINVAL;
++   }
++
++   req->hdr = I915_CCMD(GEM_EXECBUFFER2, req_len);
++   req->buffer_count = exec->buffer_count;
++   req->batch_start_offset = exec->batch_start_offset;
++   req->batch_len = exec->batch_len;
++   req->context_id = exec->rsvd1;
++   req->flags = flags & allowed_flags;
++
++   rsp = vdrm_alloc_rsp(dev->vdrm, &req->hdr, sizeof(*rsp));
++
++   struct vdrm_execbuf_params p = {
++      .req = &req->hdr,
++      .ring_idx = 1 + (flags & I915_EXEC_RING_MASK),
++      .in_syncobjs = params->in_syncobjs,
++      .num_in_syncobjs = params->num_in_syncobjs,
++      .out_syncobjs = params->out_syncobjs,
++      .num_out_syncobjs = params->num_out_syncobjs,
++      .handles = params->bo_handles,
++      .num_handles = params->num_bo_handles,
++   };
++
++   return vdrm_execbuf(dev->vdrm, &p);
++}
++
++int
++i915_virtio_gem_execbuffer2(struct intel_virtio_device *dev,
++                            struct drm_i915_gem_execbuffer2 *exec)
++{
++   unsigned num_waits = 0, num_signals = 0, num_fences = 0, i, w, s;
++   struct drm_i915_gem_execbuffer_ext_timeline_fences *ext;
++   struct virtio_gem_execbuffer_params params;
++   struct drm_i915_gem_exec_fence *fences;
++   uint64_t *syncobj_values = NULL;
++   int ret;
++
++   memset(&params, 0, sizeof(params));
++
++   if (exec->flags & I915_EXEC_USE_EXTENSIONS) {
++      ext = (void *)(uintptr_t)exec->cliprects_ptr;
++
++      if (ext->base.name != DRM_I915_GEM_EXECBUFFER_EXT_TIMELINE_FENCES) {
++         mesa_loge("unsupported extension");
++         return EINVAL;
++      }
++
++      if (ext->base.next_extension) {
++         mesa_loge("unsupported extension");
++         return EINVAL;
++      }
++
++      num_fences = ext->fence_count;
++      fences = (void *)(uintptr_t)ext->handles_ptr;
++      syncobj_values = (void *)(uintptr_t)ext->values_ptr;
++   } else if (exec->flags & I915_EXEC_FENCE_ARRAY) {
++      fences = (void *)(uintptr_t)exec->cliprects_ptr;
++      num_fences = exec->num_cliprects;
++   }
++
++   for (i = 0; i < num_fences; i++) {
++      if (fences[i].flags & I915_EXEC_FENCE_WAIT)
++         num_waits++;
++
++      if (fences[i].flags & I915_EXEC_FENCE_SIGNAL)
++         num_signals++;
++   }
++
++   if (num_waits) {
++      params.in_syncobjs = calloc(sizeof(*params.in_syncobjs), num_waits);
++      if (!params.in_syncobjs) {
++         ret = ENOMEM;
++         goto out;
++      }
++   }
++
++   if (num_signals) {
++      params.out_syncobjs = calloc(sizeof(*params.out_syncobjs), num_signals);
++      if (!params.out_syncobjs) {
++         ret = ENOMEM;
++         goto out;
++      }
++   }
++
++   for (i = 0, w = 0, s = 0; i < num_fences; i++) {
++      if (fences[i].flags & I915_EXEC_FENCE_WAIT) {
++         params.in_syncobjs[w].handle = fences[i].handle;
++         if (syncobj_values)
++            params.in_syncobjs[w].point = syncobj_values[i];
++         w++;
++      }
++
++      if (fences[i].flags & I915_EXEC_FENCE_SIGNAL) {
++         params.out_syncobjs[s].handle = fences[i].handle;
++         if (syncobj_values)
++            params.out_syncobjs[s].point = syncobj_values[i];
++         s++;
++      }
++
++      if (!(fences[i].flags & (I915_EXEC_FENCE_WAIT | I915_EXEC_FENCE_SIGNAL))) {
++         mesa_loge("invalid fence flags");
++         ret = ENOMEM;
++         goto out;
++      }
++   }
++
++   params.dev = dev;
++   params.exec = exec;
++   params.num_in_syncobjs = num_waits;
++   params.num_out_syncobjs = num_signals;
++
++   ret = i915_virtio_gem_execbuffer2_submit(&params);
++out:
++   free(params.out_syncobjs);
++   free(params.in_syncobjs);
++
++   return ret;
++}
+diff --git a/src/intel/dev/virtio/intel_virtio.h b/src/intel/dev/virtio/intel_virtio.h
+new file mode 100644
+index 0000000000000..a3d37804f6215
+--- /dev/null
++++ b/src/intel/dev/virtio/intel_virtio.h
+@@ -0,0 +1,52 @@
++/*
++ * Copyright 2024 Collabora, Ltd.
++ * SPDX-License-Identifier: MIT
++ */
++
++#ifndef INTEL_VIRTIO_H_
++#define INTEL_VIRTIO_H_
++
++#include <stdbool.h>
++#include <sys/mman.h>
++
++#include "util/macros.h"
++
++struct intel_device_info;
++
++#ifdef HAVE_INTEL_VIRTIO
++int intel_virtio_init_fd(int fd);
++void intel_virtio_ref_fd(int fd);
++void intel_virtio_unref_fd(int fd);
++bool intel_virtio_get_pci_device_info(int fd,
++                                      struct intel_device_info *devinfo);
++bool is_intel_virtio_fd(int fd);
++void *intel_virtio_bo_mmap(int fd, uint32_t handle, size_t size);
++#else
++static inline int intel_virtio_init_fd(int fd)
++{
++   return 0;
++}
++
++static inline void intel_virtio_ref_fd(int fd) {};
++
++static inline void intel_virtio_unref_fd(int fd) {};
++
++static inline bool
++intel_virtio_get_pci_device_info(int fd, struct intel_device_info *devinfo)
++{
++   return false;
++}
++
++static inline bool is_intel_virtio_fd(int fd)
++{
++   return false;
++}
++
++static inline void *
++intel_virtio_bo_mmap(int fd, uint32_t handle, size_t size)
++{
++   return MAP_FAILED;
++}
++#endif /* HAVE_INTEL_VIRTIO */
++
++#endif /* INTEL_VIRTIO_H_ */
+diff --git a/src/intel/dev/virtio/intel_virtio_bo.c b/src/intel/dev/virtio/intel_virtio_bo.c
+new file mode 100644
+index 0000000000000..926e8a25efbac
+--- /dev/null
++++ b/src/intel/dev/virtio/intel_virtio_bo.c
+@@ -0,0 +1,22 @@
++/*
++ * Copyright 2024 Collabora, Ltd.
++ * SPDX-License-Identifier: MIT
++ */
++
++#include "intel_virtio_priv.h"
++
++void *intel_virtio_bo_mmap(int fd, uint32_t handle, size_t size)
++{
++   struct intel_virtio_device *dev = fd_to_intel_virtio_device(fd);
++
++   if (!dev)
++      return MAP_FAILED;
++
++   void *map = vdrm_bo_map(dev->vdrm, handle, size, NULL);
++   if (!map) {
++      mesa_loge("failed to map bo");
++      return MAP_FAILED;
++   }
++
++   return map;
++}
+diff --git a/src/intel/dev/virtio/intel_virtio_device.c b/src/intel/dev/virtio/intel_virtio_device.c
+new file mode 100644
+index 0000000000000..29b138316a785
+--- /dev/null
++++ b/src/intel/dev/virtio/intel_virtio_device.c
+@@ -0,0 +1,148 @@
++/*
++ * Copyright 2024 Collabora, Ltd.
++ * SPDX-License-Identifier: MIT
++ */
++
++#include "intel_device_info.h"
++#include "intel_virtio_priv.h"
++
++static simple_mtx_t dev_list_lock = SIMPLE_MTX_INITIALIZER;
++static struct list_head dev_list = {
++   .next = &dev_list,
++   .prev = &dev_list,
++};
++
++/*
++ * Returns NULL if given FD isn't backed by virtio-intel device.
++ * Note this function is only used internally by the virtio-intel code,
++ * we don't expose struct intel_virtio_device globally.
++ */
++struct intel_virtio_device *
++fd_to_intel_virtio_device(int fd)
++{
++   struct intel_virtio_device *dev = NULL;
++
++   simple_mtx_lock(&dev_list_lock);
++
++   list_for_each_entry(struct intel_virtio_device, itr,
++                       &dev_list, list_item) {
++      int err = os_same_file_description(itr->fd, fd);
++      if (!err) {
++         dev = itr;
++         break;
++      }
++   }
++
++   simple_mtx_unlock(&dev_list_lock);
++
++   return dev;
++}
++
++bool is_intel_virtio_fd(int fd)
++{
++   return fd_to_intel_virtio_device(fd) != NULL;
++}
++
++bool
++intel_virtio_get_pci_device_info(int fd, struct intel_device_info *devinfo)
++{
++   struct intel_virtio_device *dev = fd_to_intel_virtio_device(fd);
++   struct virgl_renderer_capset_drm caps;
++
++   if (!dev)
++      return false;
++
++   caps = dev->vdrm->caps;
++
++   devinfo->pci_bus = caps.u.intel.pci_bus;
++   devinfo->pci_dev = caps.u.intel.pci_dev;
++   devinfo->pci_func = caps.u.intel.pci_func;
++   devinfo->pci_domain = caps.u.intel.pci_domain;
++   devinfo->pci_device_id = caps.u.intel.pci_device_id;
++   devinfo->pci_revision_id = caps.u.intel.pci_revision_id;
++
++   return true;
++}
++
++static bool is_virtio_fd(int fd)
++{
++   drmVersionPtr version = drmGetVersion(fd);
++   bool is_virtio = !strcmp(version->name, "virtio_gpu");
++   drmFreeVersion(version);
++
++   if (debug_get_bool_option("INTEL_VIRTIO_FORCE_VTEST", false))
++      is_virtio = true;
++
++   return is_virtio;
++}
++
++static uint64_t
++virtgpu_ioctl_getparam(int fd, uint64_t param)
++{
++   /* val must be zeroed because kernel only writes the lower 32 bits */
++   uint64_t val = 0;
++   struct drm_virtgpu_getparam args = {
++      .param = param,
++      .value = (uintptr_t)&val,
++   };
++
++   const int ret = drmIoctl(fd, DRM_IOCTL_VIRTGPU_GETPARAM, &args);
++   return ret ? 0 : val;
++}
++
++int intel_virtio_init_fd(int fd)
++{
++   if (!is_virtio_fd(fd))
++      return 0;
++
++   struct intel_virtio_device *dev = calloc(1, sizeof(*dev));
++   if (!dev)
++      return -EINVAL;
++
++   if (debug_get_bool_option("INTEL_VIRTIO_FORCE_VTEST", false)) {
++      dev->vdrm = vdrm_device_connect(-1, VIRTGPU_DRM_CONTEXT_I915);
++   } else {
++      dev->vdrm = vdrm_device_connect(fd, VIRTGPU_DRM_CONTEXT_I915);
++
++      if (virtgpu_ioctl_getparam(fd, VIRTGPU_PARAM_CROSS_DEVICE))
++         dev->supports_cross_device = true;
++   }
++
++   if (!dev->vdrm) {
++      free(dev);
++      return -EINVAL;
++   }
++
++   dev->fd = os_dupfd_cloexec(fd);
++
++   p_atomic_set(&dev->refcnt, 1);
++
++   simple_mtx_lock(&dev_list_lock);
++   list_add(&dev->list_item, &dev_list);
++   simple_mtx_unlock(&dev_list_lock);
++
++   return 1;
++}
++
++void intel_virtio_ref_fd(int fd)
++{
++   struct intel_virtio_device *dev = fd_to_intel_virtio_device(fd);
++
++   if (dev)
++      p_atomic_inc(&dev->refcnt);
++}
++
++void intel_virtio_unref_fd(int fd)
++{
++   struct intel_virtio_device *dev = fd_to_intel_virtio_device(fd);
++
++   if (dev && !p_atomic_dec_return(&dev->refcnt)) {
++      simple_mtx_lock(&dev_list_lock);
++      list_del(&dev->list_item);
++      simple_mtx_unlock(&dev_list_lock);
++
++      vdrm_device_close(dev->vdrm);
++      close(dev->fd);
++      free(dev);
++   }
++}
+diff --git a/src/intel/dev/virtio/intel_virtio_priv.h b/src/intel/dev/virtio/intel_virtio_priv.h
+new file mode 100644
+index 0000000000000..84d5eaea5d59c
+--- /dev/null
++++ b/src/intel/dev/virtio/intel_virtio_priv.h
+@@ -0,0 +1,65 @@
++/*
++ * Copyright 2024 Collabora, Ltd.
++ * SPDX-License-Identifier: MIT
++ */
++
++#ifndef INTEL_VIRTIO_PRIV_H_
++#define INTEL_VIRTIO_PRIV_H_
++
++#include <errno.h>
++#include <fcntl.h>
++#include <poll.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <unistd.h>
++#include <sys/ioctl.h>
++#include <sys/mman.h>
++
++#include "drm-uapi/drm.h"
++#include "drm-uapi/i915_drm.h"
++#include "drm-uapi/virtgpu_drm.h"
++#include <xf86drm.h>
++
++#include "util/libsync.h"
++#include "util/list.h"
++#include "util/log.h"
++#include "util/macros.h"
++#include "util/os_file.h"
++#include "util/simple_mtx.h"
++#include "util/u_atomic.h"
++#include "util/u_debug.h"
++#include "util/u_math.h"
++#include "util/perf/cpu_trace.h"
++
++#include "common/intel_gem.h"
++
++#include "virglrenderer_hw.h"
++
++#include "intel_virtio.h"
++
++#include "vdrm.h"
++
++#define virtio_ioctl(fd, name, args) ({                           \
++   MESA_TRACE_SCOPE(#name);                                       \
++   int ret = drmIoctl((fd), DRM_IOCTL_ ## name, (args));          \
++   ret;                                                           \
++})
++
++struct intel_virtio_device {
++   struct list_head list_item;
++   struct vdrm_device *vdrm;
++   int fd;
++
++   uint32_t next_blob_id;
++   uint32_t refcnt;
++
++   bool supports_cross_device;
++};
++
++struct intel_virtio_device *fd_to_intel_virtio_device(int fd);
++
++int i915_virtio_gem_execbuffer2(struct intel_virtio_device *dev,
++                                struct drm_i915_gem_execbuffer2 *exec);
++
++#endif /* INTEL_VIRTIO_PRIV_H_ */
+diff --git a/src/intel/perf/intel_perf.c b/src/intel/perf/intel_perf.c
+index 7e56d40d9b003..dd1126830a1f4 100644
+--- a/src/intel/perf/intel_perf.c
++++ b/src/intel/perf/intel_perf.c
+@@ -45,6 +45,7 @@
+ 
+ #include "dev/intel_debug.h"
+ #include "dev/intel_device_info.h"
++#include "dev/virtio/intel_virtio.h"
+ 
+ #include "perf/i915/intel_perf.h"
+ #include "perf/xe/intel_perf.h"
+@@ -686,6 +687,10 @@ oa_metrics_available(struct intel_perf_config *perf, int fd,
+    perf_register_oa_queries_t oa_register = get_register_queries_function(devinfo);
+    bool oa_metrics_available = false;
+ 
++   /* TODO: Support performance metrics */
++   if (is_intel_virtio_fd(fd))
++      return false;
++
+    perf->devinfo = devinfo;
+ 
+    /* Consider an invalid as supported. */
+diff --git a/src/intel/vulkan/anv_device.c b/src/intel/vulkan/anv_device.c
+index 1884932bbc76b..932ee3f24994f 100644
+--- a/src/intel/vulkan/anv_device.c
++++ b/src/intel/vulkan/anv_device.c
+@@ -401,7 +401,6 @@ VkResult anv_CreateDevice(
+    }
+ 
+    anv_device_set_physical(device, physical_device);
+-   device->kmd_backend = anv_kmd_backend_get(device->info->kmd_type);
+ 
+    /* XXX(chadv): Can we dup() physicalDevice->fd here? */
+    device->fd = open(physical_device->path, O_RDWR | O_CLOEXEC);
+@@ -410,6 +409,13 @@ VkResult anv_CreateDevice(
+       goto fail_device;
+    }
+ 
++   if (intel_virtio_init_fd(device->fd) < 0) {
++      result = VK_ERROR_INCOMPATIBLE_DRIVER;
++      goto fail_fd;
++   }
++
++   device->kmd_backend = anv_kmd_backend_get(device->info->kmd_type);
++
+    switch (device->info->kmd_type) {
+    case INTEL_KMD_TYPE_I915:
+       device->vk.check_status = anv_i915_device_check_status;
+@@ -1119,6 +1125,7 @@ VkResult anv_CreateDevice(
+  fail_context_id:
+    anv_device_destroy_context_or_vm(device);
+  fail_fd:
++   intel_virtio_unref_fd(device->fd);
+    close(device->fd);
+  fail_device:
+    vk_device_finish(&device->vk);
+diff --git a/src/intel/vulkan/anv_physical_device.c b/src/intel/vulkan/anv_physical_device.c
+index 3347aa6873ade..8424473915bba 100644
+--- a/src/intel/vulkan/anv_physical_device.c
++++ b/src/intel/vulkan/anv_physical_device.c
+@@ -2398,16 +2398,12 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
+    struct anv_instance *instance =
+       container_of(vk_instance, struct anv_instance, vk);
+ 
+-   if (!(drm_device->available_nodes & (1 << DRM_NODE_RENDER)) ||
+-       drm_device->bustype != DRM_BUS_PCI ||
+-       drm_device->deviceinfo.pci->vendor_id != 0x8086)
+-      return VK_ERROR_INCOMPATIBLE_DRIVER;
+-
+    const char *primary_path = drm_device->nodes[DRM_NODE_PRIMARY];
+    const char *path = drm_device->nodes[DRM_NODE_RENDER];
+    VkResult result;
+    int fd;
+    int master_fd = -1;
++   int ret;
+ 
+    process_intel_debug_variable();
+ 
+@@ -2421,6 +2417,22 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
+                        "Unable to open device %s: %m", path);
+    }
+ 
++   ret = intel_virtio_init_fd(fd);
++   if (ret < 0) {
++      result = VK_ERROR_INCOMPATIBLE_DRIVER;
++      goto fail_fd;
++   }
++
++   bool is_virtio = ret > 0;
++   if (!is_virtio) {
++      if (!(drm_device->available_nodes & (1 << DRM_NODE_RENDER)) ||
++         drm_device->bustype != DRM_BUS_PCI ||
++         drm_device->deviceinfo.pci->vendor_id != 0x8086) {
++         result = VK_ERROR_INCOMPATIBLE_DRIVER;
++         goto fail_fd;
++      }
++   }
++
+    struct intel_device_info devinfo;
+    if (!intel_get_device_info_from_fd(fd, &devinfo, 9, -1)) {
+       result = VK_ERROR_INCOMPATIBLE_DRIVER;
+@@ -2701,6 +2713,7 @@ fail_base:
+ fail_alloc:
+    vk_free(&instance->vk.alloc, device);
+ fail_fd:
++   intel_virtio_unref_fd(fd);
+    close(fd);
+    if (master_fd != -1)
+       close(master_fd);
+@@ -2719,6 +2732,7 @@ anv_physical_device_destroy(struct vk_physical_device *vk_device)
+    anv_physical_device_free_disk_cache(device);
+    ralloc_free(device->compiler);
+    intel_perf_free(device->perf);
++   intel_virtio_unref_fd(device->local_fd);
+    close(device->local_fd);
+    if (device->master_fd >= 0)
+       close(device->master_fd);
+diff --git a/src/intel/vulkan/anv_private.h b/src/intel/vulkan/anv_private.h
+index 8401d3fbd30c9..3cc1465feac56 100644
+--- a/src/intel/vulkan/anv_private.h
++++ b/src/intel/vulkan/anv_private.h
+@@ -55,6 +55,7 @@
+ #include "compiler/brw_kernel.h"
+ #include "compiler/brw_rt.h"
+ #include "ds/intel_driver_ds.h"
++#include "dev/virtio/intel_virtio.h"
+ #include "util/bitset.h"
+ #include "util/bitscan.h"
+ #include "util/detect_os.h"
+diff --git a/src/intel/vulkan/i915/anv_kmd_backend.c b/src/intel/vulkan/i915/anv_kmd_backend.c
+index 646745f2a230f..0634ead3357bb 100644
+--- a/src/intel/vulkan/i915/anv_kmd_backend.c
++++ b/src/intel/vulkan/i915/anv_kmd_backend.c
+@@ -170,6 +170,10 @@ i915_gem_mmap_offset(struct anv_device *device, struct anv_bo *bo,
+    if (intel_ioctl(device->fd, DRM_IOCTL_I915_GEM_MMAP_OFFSET, &gem_mmap))
+       return MAP_FAILED;
+ 
++   if (is_intel_virtio_fd(device->fd)) {
++      return intel_virtio_bo_mmap(device->fd, bo->gem_handle, size);
++   }
++
+    return mmap(placed_addr, size, PROT_READ | PROT_WRITE,
+                (placed_addr != NULL ? MAP_FIXED : 0) | MAP_SHARED,
+                device->fd, gem_mmap.offset);
+diff --git a/src/meson.build b/src/meson.build
+index 80486ba3ccae3..c0e72ff07f36b 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -66,9 +66,6 @@ endif
+ if with_any_vk or with_gallium_zink
+   subdir('vulkan')
+ endif
+-if with_any_intel
+-  subdir('intel')
+-endif
+ if system_has_kms_drm or with_gallium_virgl
+   subdir('virtio')
+ endif
+@@ -87,6 +84,9 @@ endif
+ if with_imagination_vk
+   subdir('imagination')
+ endif
++if with_any_intel
++  subdir('intel')
++endif
+ if with_gallium_panfrost or with_gallium_lima or with_panfrost_vk or with_tools.contains('panfrost')
+   subdir('panfrost')
+ endif
+diff --git a/src/virtio/virtio-gpu/drm_hw.h b/src/virtio/virtio-gpu/drm_hw.h
+index 33a90842738d7..a397acd829f0f 100644
+--- a/src/virtio/virtio-gpu/drm_hw.h
++++ b/src/virtio/virtio-gpu/drm_hw.h
+@@ -18,6 +18,7 @@ struct virgl_renderer_capset_drm {
+    uint32_t version_patchlevel;
+ #define VIRTGPU_DRM_CONTEXT_MSM      1
+ #define VIRTGPU_DRM_CONTEXT_AMDGPU   2
++#define VIRTGPU_DRM_CONTEXT_I915     3
+    uint32_t context_type;
+    uint32_t pad;
+    union {
+@@ -42,6 +43,14 @@ struct virgl_renderer_capset_drm {
+ #endif
+          char marketing_name[128];
+       } amdgpu;   /* context_type == VIRTGPU_DRM_CONTEXT_AMDGPU */
++      struct {
++         uint8_t  pci_bus;
++         uint8_t  pci_dev;
++         uint8_t  pci_func;
++         uint8_t  pci_revision_id;
++         uint16_t pci_domain;
++         uint16_t pci_device_id;
++      } intel;  /* context_type == VIRTGPU_DRM_CONTEXT_I915 */
+    } u;
+ };
+ 
+-- 
+GitLab
+
+
+From a994ef4158d866b8d6a2bf606accb25868ddd623 Mon Sep 17 00:00:00 2001
+From: Dmitry Osipenko <digetx@gmail.com>
+Date: Mon, 27 May 2024 16:42:23 +0300
+Subject: [PATCH 3/3] iris: Skip 2MB BO size alignment optimization for
+ virtio-gpu native context
+
+Prefer smaller BO sizes for virtio context. Larger BOs take much more
+time to allocate and map in a VM, resulting in a too big performance
+overhead.
+
+Signed-off-by: Dmitry Osipenko <digetx@gmail.com>
+---
+ src/gallium/drivers/iris/iris_bufmgr.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/iris/iris_bufmgr.c b/src/gallium/drivers/iris/iris_bufmgr.c
+index 7340c9ccda982..7d32d1abc7f24 100644
+--- a/src/gallium/drivers/iris/iris_bufmgr.c
++++ b/src/gallium/drivers/iris/iris_bufmgr.c
+@@ -1111,8 +1111,11 @@ alloc_fresh_bo(struct iris_bufmgr *bufmgr, uint64_t bo_size, unsigned flags)
+     * than 64MB should hit the BO cache or slab allocations anyway, so this
+     * shouldn't waste too much memory.  We do exclude small (< 1MB) sizes to
+     * be defensive in case any of those bypass the caches and end up here.
++    *
++    * For VirtioGPU this optimization has a negative performance impact
++    * due to a slower memory allocation and mapping in a VM.
+     */
+-   if (bo_size >= 1024 * 1024)
++   if (bo_size >= 1024 * 1024 && !is_intel_virtio_fd(bufmgr->fd))
+       bo_size = align64(bo_size, 2 * 1024 * 1024);
+ 
+    bo->real.heap = flags_to_heap(bufmgr, flags);
+-- 
+GitLab
+

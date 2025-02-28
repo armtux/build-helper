@@ -32,7 +32,7 @@ rust_abi() {
 	local CTARGET=${1:-${CHOST}}
 	local CTARGET_ARCH="$(echo ${CTARGET} | cut -d '-' -f 1)"
 	local CTARGET_LIBC="$(echo ${CTARGET} | cut -d '-' -f 4)"
-	if ( ! [ "${CTARGET}" = "${CBUILD}" ] || tc-is-cross-compiler ) && \
+	if tc-is-cross-compiler && [ "${CTARGET}" != "${CBUILD}" ] && \
 		[ "$(echo ${CBUILD} | cut -d '-' -f 1)" = "${CTARGET_ARCH}" ] && \
 		[ "$(echo ${CBUILD} | cut -d '-' -f 4)" = "${CTARGET_LIBC}" ]
 	then

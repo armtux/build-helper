@@ -163,7 +163,7 @@ then
 	if [ "$(emerge -uDNp --with-bdeps=y @world | grep 'dev-lang/python-' | wc -l)" -lt "1" ]
 	then
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-		emerge -1kq portage
+		emerge -1ukq portage
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
 	#set -e
@@ -211,7 +211,7 @@ then
 		# re-source to apply eselect changes to current shell
 		source /etc/profile
 		# build perl and modules before the rest, to avoid build failures
-		emerge -1kq perl
+		emerge -1ukq perl
 		#emerge -1kq perl dev-perl/Locale-gettext dev-perl/Pod-Parser
 		perl-cleaner --all -- -q
 		CHROOT_RESUME_LINENO="$LINENO"
@@ -222,7 +222,7 @@ then
 			then
 				rm /usr/${unique_target}
 			fi
-			ln -s `ls -1v /usr/${unique_target}.*/usr | grep "/usr/" | grep -v skeleton | sed -e 's/://' -e 's#/usr$##' | tail -n 1` /usr/${unique_target}
+			ln -s `ls -1v /usr/${unique_target}.* | grep "/usr/" | grep -v skeleton | sed -e 's/://' | tail -n 1` /usr/${unique_target}
 		done
 		CHROOT_RESUME_LINENO="0"
 		CHROOT_RESUME_LINENO="$LINENO"
@@ -311,13 +311,15 @@ then
 			##ln -s x86_64-pc-linux-gnu-llvm-config /usr/bin/${unique_target}-llvm-config
 		fi
 		# locale-gen is usually not present for musl (host environment), but is needed if target toolchain is glibc
-		if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`" = "glibc" ]
-		then
-			if [ ! -e /usr/sbin/locale-gen ]
-			then
-				ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/sbin/locale-gen /usr/sbin/locale-gen
-			fi
-		fi
+		#if [ "`grep ELIBC ${BUILD_CONF}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//'`" = "glibc" ] && \
+		#	! ($(ls -l ${HOST_CONF}/target-portage/make.profile) | grep -q musl)
+		#then
+		#	if [ -h /usr/bin/locale-gen ]
+		#	then
+		#		rm /usr/bin/locale.gen
+		#		ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/bin/locale-gen /usr/bin/locale-gen
+		#	fi
+		#fi
 
 		# choose latest crossdev toolchain versions
 		eselect gcc set ${unique_target}-`ls -1v /usr/lib/gcc/${unique_target} | tail -n 1`
@@ -369,9 +371,21 @@ then
 				ln -s /usr/${unique_target}.skeleton /usr/${unique_target}
 			fi
 			unset VIDEO_CARDS
-			${unique_target}-emerge -1kq sys-devel/gcc \
+
+			if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
+			then
+				CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+				sed -i -e 's/^INSTALL_MASK/#INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
+				#sed -i -e 's@^sys-devel/gcc@#sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
+				sed -i -e 's@^INSTALL_MASK@#INSTALL_MASK@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/env/sys-devel/gcc
+				CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+			fi
+
+			${unique_target}-emerge --root=/usr/${unique_target}.skeleton \
+				--sysroot=/usr/${unique_target}.skeleton -1kq sys-devel/gcc \
 				sys-libs/$(grep ELIBC ${BUILD_CONF}/../${TEMP_TARGET}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//')
-			${unique_target}-emerge -1kq dev-libs/openssl
+			${unique_target}-emerge --root=/usr/${unique_target}.skeleton \
+				--sysroot=/usr/${unique_target}.skeleton -1kq dev-libs/openssl
 			#mv ${BUILD_CONF}/../../packages/${TEMP_TARGET} /tmp/packages-${TEMP_TARGET}
 		# signal to non-chroot script that crossdev target environments are ready for next targets in line for chroot
 		# TODO: replace with flock
@@ -394,7 +408,12 @@ then
 		do
 			# remove rust dependencies to rebuild later with correct custom target cflags
 			TEMP_TARGET="$(ls -1 ${BUILD_CONF}/.. | grep ${unique_target} | head -n 1)"
-			${unique_target}-emerge -qC $(cat ${BUILD_CONF}/../${TEMP_TARGET}/worlds/rust.clean)
+			${unique_target}-emerge --root=/usr/${unique_target}.skeleton \
+				--sysroot=/usr/${unique_target}.skeleton -qC $(cat ${BUILD_CONF}/../${TEMP_TARGET}/worlds/rust.clean)
+			${unique_target}-emerge --root=/usr/${unique_target}.skeleton \
+				--sysroot=/usr/${unique_target}.skeleton -q --depclean
+			emerge -1kq cross-${unique_target}/gcc \
+				cross-${unique_target}/$(grep ELIBC ${BUILD_CONF}/../${TEMP_TARGET}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//')
 			touch /tmp/cross_ready.${unique_target}
 		done
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
@@ -1416,6 +1435,7 @@ then
 		lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/
 	depmod -a -b . ${BUILD_KERNEL_VER}
 	cp -a ../squashfs/lib/{ld-,libc.so,libcrypt.so}* lib/
+	[ -e ../squashfs/lib/libm.so ] && cp -a ../squashfs/lib/libm.so* lib/
 	cp -a ../squashfs/lib/{libcrypto.so,libssl.so}* lib/
 	if [ -e ../squashfs/bin/wrmsr ]
 	then
