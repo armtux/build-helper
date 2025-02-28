@@ -39,23 +39,23 @@ build-helper
 
     5.2 [initramfs (directory; required)](#initramfs-directory-required)
 
-    5.3 [linux.config (file; optional)](#linux.config-file-optional)
+    5.3 [linux.config (file; optional)](#linuxconfig-file-optional)
 
     5.4 [repos (directory; required, but optionally without ebuilds or eclasses)](#repos-directory-required-but-optionally-without-ebuilds-or-eclasses)
 
-    5.5 [skip.mrproper (empty file; optional)](#skip.mrproper-empty-file-optional)
+    5.5 [skip.mrproper (empty file; optional)](#skipmrproper-empty-file-optional)
 
-    5.6 [split.base (empty file; optional)](#split.base-empty-file-optional)
+    5.6 [split.base (empty file; optional)](#splitbase-empty-file-optional)
 
-    5.7 [split.extra (empty file; optional)](#split.extra-empty-file-optional)
+    5.7 [split.extra (empty file; optional)](#splitextra-empty-file-optional)
 
-    5.8 [split.initramfs (empty file; optional)](#split.initramfs-empty-file-optional)
+    5.8 [split.initramfs (empty file; optional)](#splitinitramfs-empty-file-optional)
 
     5.9 [target-portage (directory; required)](#target-portage-directory-required)
 
-    5.10 [toybox-mini.config OR busybox-mini.config (file; required)](#toybox-mini.config-or-busybox-mini.config-file-required)
+    5.10 [toybox-mini.config OR busybox-mini.config (file; required)](#toybox-miniconfig-or-busybox-miniconfig-file-required)
 
-    5.11 [toybox.config OR busybox.config (file; optional)](#toybox.config-or-busybox.config-file-optional)
+    5.11 [toybox.config OR busybox.config (file; optional)](#toyboxconfig-or-busyboxconfig-file-optional)
 
     5.12 [worlds and worlds/tree (directory tree; required)](#worlds-and-worldstree-directory-tree-required)
 
