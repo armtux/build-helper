@@ -1,0 +1,5 @@
+[gnu-local-zen2-tb-steam]
+location = /var/db/repos/portage-gnu-zen2-tb-steam
+priority = 10
+masters = gentoo
+auto-sync = no

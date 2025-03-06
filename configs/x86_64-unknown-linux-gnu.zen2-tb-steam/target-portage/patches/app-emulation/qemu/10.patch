@@ -1,0 +1,42 @@
+From 982396619afc11cf09bc9016d282fcc403819a4f Mon Sep 17 00:00:00 2001
+From: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+Date: Tue, 16 May 2023 21:04:21 +0300
+Subject: [PATCH] ui/sdl2: Restore original context after new context creation
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+SDL API changes GL context to a newly created GL context, which differs
+from other GL providers that don't switch context. Change SDL backend to
+restore the original GL context. This allows Qemu's virtio-gpu to support
+new virglrenderer async-fencing feature for Virgl contexts, otherwise
+virglrenderer's vrend creates a fence-sync context on the Qemu's
+main-loop thread that erroneously stays in-use by the main-loop after
+creation, not allowing vrend's fence-sync thread switch to this new
+context that belongs to it.
+
+Reviewed-by: Akihiko Odaki <akihiko.odaki@daynix.com>
+Acked-by: Michael S. Tsirkin <mst@redhat.com>
+Tested-by: Alex Bennée <alex.bennee@linaro.org>
+Signed-off-by: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+---
+ ui/sdl2-gl.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/ui/sdl2-gl.c b/ui/sdl2-gl.c
+index e01d9ab0c7b..b1fe96d6af2 100644
+--- a/ui/sdl2-gl.c
++++ b/ui/sdl2-gl.c
+@@ -168,6 +168,9 @@ QEMUGLContext sdl2_gl_create_context(DisplayGLCtx *dgc,
+                             SDL_GL_CONTEXT_PROFILE_ES);
+         ctx = SDL_GL_CreateContext(scon->real_window);
+     }
++
++    SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
++
+     return (QEMUGLContext)ctx;
+ }
+ 
+-- 
+GitLab
+

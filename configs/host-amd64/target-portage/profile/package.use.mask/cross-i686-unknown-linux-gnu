@@ -1,0 +1,5 @@
+cross-i686-unknown-linux-gnu/linux-headers  multilib
+cross-i686-unknown-linux-gnu/glibc  cet multilib
+cross-i686-unknown-linux-gnu/binutils  cet multilib
+cross-i686-unknown-linux-gnu/gcc  cet multilib
+cross-i686-unknown-linux-gnu/gdb  multilib

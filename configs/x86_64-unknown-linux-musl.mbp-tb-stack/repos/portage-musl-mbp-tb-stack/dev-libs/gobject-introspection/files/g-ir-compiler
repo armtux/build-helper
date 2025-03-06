@@ -1,0 +1,19 @@
+#!/bin/sh
+
+if [ "${CHOST}" != "${CBUILD}" ]; then
+	# wrapper for g-ir-compiler, which runs the target version of it through qemu.
+	# g-ir-compiler writes out the raw content of a C struct to disk, and therefore
+	# is architecture dependent.
+	if [ -x build/tools/g-ir-compiler ]; then
+		# We are compiling gobject-introspection.
+		# lets used the one we just compiled.
+		gir_bin=build/tools/g-ir-compiler
+	elif [ -x ${ROOT}/usr/bin/g-ir-compiler.wrapped ]; then
+		# Lets use the g-ir-compiler from the target
+		gir_bin=${ROOT}/usr/bin/g-ir-compiler.wrapped
+	fi
+	echo "$@"
+	exec /usr/bin/g-ir-scanner-qemuwrapper ${gir_bin} --verbose "$@"
+fi
+
+exec /usr/bin/g-ir-compiler.wrapped "$@"

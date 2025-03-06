@@ -1,0 +1,10 @@
+@world
+dev-libs/libbsd
+dev-libs/libusb
+dev-libs/openssl
+net-misc/dhcpcd
+sys-apps/locale-gen
+sys-apps/toybox
+sys-kernel/linux-firmware
+virtual/libudev
+virtual/libusb

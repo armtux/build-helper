@@ -1,0 +1,5 @@
+cross-i686-unknown-linux-gnu/linux-headers cross-i686-unknown-linux-gnu/linux-headers.conf
+cross-i686-unknown-linux-gnu/glibc cross-i686-unknown-linux-gnu/glibc.conf
+cross-i686-unknown-linux-gnu/binutils cross-i686-unknown-linux-gnu/binutils.conf
+cross-i686-unknown-linux-gnu/gcc cross-i686-unknown-linux-gnu/gcc.conf
+cross-i686-unknown-linux-gnu/gdb cross-i686-unknown-linux-gnu/gdb.conf

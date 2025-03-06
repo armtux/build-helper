@@ -1,0 +1,19 @@
+#!/bin/sh
+# Use a modules directory which doesn't exist so we don't load random things
+# which may then get deleted (or their dependencies) and potentially segfault
+#export GIO_MODULE_DIR=${ROOT}/gio/modules-dummy
+
+FULLCOMMAND="$(echo "$@" | sed -E "s#^(/usr)?(/s?bin/)#${ROOT}/bin/#" | sed -E "s#^([a-z])#${ROOT}/bin/\\1#")"
+FILEPATH="$(echo ${FULLCOMMAND} | cut -d ' ' -f 1)"
+
+file ${FILEPATH} | grep -q script && INTERPRETER="${ROOT}/$(head -n 1 ${FILEPATH} | sed -e 's/^#!//') "
+
+unset LD_LIBRARY_PATH
+unset LD_PRELOAD
+
+qemu-$(echo ${CHOST} | sed -e 's/-.*//' | sed -E 's/i.86/i386/') \
+			-L ${ROOT} \
+			-E LD_PRELOAD="" \
+			-E LD_LIBRARY_PATH="${ROOT}/usr/lib:${ROOT}/lib:/lib:.libs:${GIR_EXTRA_LIBS_PATH}" \
+			-U GIO_MODULE_DIR \
+			${INTERPRETER}${FULLCOMMAND}

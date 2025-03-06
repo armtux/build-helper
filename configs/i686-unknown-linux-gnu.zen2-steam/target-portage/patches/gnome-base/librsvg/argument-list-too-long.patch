@@ -1,0 +1,164 @@
+diff '--color=auto' -urN old/Makefile.am new/Makefile.am
+--- old/Makefile.am	2024-08-27 23:03:31.280000000 +0000
++++ new/Makefile.am	2024-08-27 23:05:24.520000000 +0000
+@@ -295,44 +295,44 @@
+ 	code-of-conduct.md
+ 
+ test_resources =						\
+-	$(wildcard $(srcdir)/rsvg/tests/resources/*.ttf)	\
++	$(wildcard rsvg/tests/resources/*.ttf)	\
+ 	$(srcdir)/rsvg/tests/resources/fonts.conf		\
+ 	$(srcdir)/rsvg/tests/resources/README.md
+ 
+ test_fixtures =									\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/api/*.svg)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/cmdline/*.svg)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/cmdline/*.png)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/crash/*.svg)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/crash/*.png)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/errors/*)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/geometries/*)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/loading/*)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/loading/subdir/*)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/primitive_geometries/*)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/*.css)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/*.png)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/*.txt)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/adwaita/*.svg)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/adwaita/*.png)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/bugs/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/bugs/*.png)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg1.1/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg1.1/*.png)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg1.1/images/*)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg1.1/resources/*)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg2/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg2/*.png)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/bugs-reftests/*.svg)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg2-reftests/*.svg)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg2-reftests/*.png)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/render-crash/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/text/*.svg)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/dimensions/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg_convert/tests/fixtures/*.css)			\
+-	$(wildcard $(srcdir)/rsvg_convert/tests/fixtures/*.svg)			\
+-	$(wildcard $(srcdir)/rsvg_convert/tests/fixtures/*.png)
++	$(wildcard rsvg/tests/fixtures/api/*.svg)			\
++	$(wildcard rsvg/tests/fixtures/cmdline/*.svg)			\
++	$(wildcard rsvg/tests/fixtures/cmdline/*.png)			\
++	$(wildcard rsvg/tests/fixtures/crash/*.svg)			\
++	$(wildcard rsvg/tests/fixtures/crash/*.png)			\
++	$(wildcard rsvg/tests/fixtures/errors/*)			\
++	$(wildcard rsvg/tests/fixtures/geometries/*)			\
++	$(wildcard rsvg/tests/fixtures/loading/*)			\
++	$(wildcard rsvg/tests/fixtures/loading/subdir/*)		\
++	$(wildcard rsvg/tests/fixtures/primitive_geometries/*)	\
++	$(wildcard rsvg/tests/fixtures/reftests/*.css)		\
++	$(wildcard rsvg/tests/fixtures/reftests/*.svg)		\
++	$(wildcard rsvg/tests/fixtures/reftests/*.png)		\
++	$(wildcard rsvg/tests/fixtures/reftests/*.txt)		\
++	$(wildcard rsvg/tests/fixtures/reftests/adwaita/*.svg)	\
++	$(wildcard rsvg/tests/fixtures/reftests/adwaita/*.png)	\
++	$(wildcard rsvg/tests/fixtures/reftests/bugs/*.svg)		\
++	$(wildcard rsvg/tests/fixtures/reftests/bugs/*.png)		\
++	$(wildcard rsvg/tests/fixtures/reftests/svg1.1/*.svg)		\
++	$(wildcard rsvg/tests/fixtures/reftests/svg1.1/*.png)		\
++	$(wildcard rsvg/tests/fixtures/reftests/svg1.1/images/*)	\
++	$(wildcard rsvg/tests/fixtures/reftests/svg1.1/resources/*)	\
++	$(wildcard rsvg/tests/fixtures/reftests/svg2/*.svg)		\
++	$(wildcard rsvg/tests/fixtures/reftests/svg2/*.png)		\
++	$(wildcard rsvg/tests/fixtures/reftests/bugs-reftests/*.svg)	\
++	$(wildcard rsvg/tests/fixtures/reftests/svg2-reftests/*.svg)	\
++	$(wildcard rsvg/tests/fixtures/reftests/svg2-reftests/*.png)	\
++	$(wildcard rsvg/tests/fixtures/render-crash/*.svg)		\
++	$(wildcard rsvg/tests/fixtures/text/*.svg)			\
++	$(wildcard rsvg/tests/fixtures/dimensions/*.svg)		\
++	$(wildcard rsvg_convert/tests/fixtures/*.css)			\
++	$(wildcard rsvg_convert/tests/fixtures/*.svg)			\
++	$(wildcard rsvg_convert/tests/fixtures/*.png)
+ 
+ EXTRA_DIST =				\
+ 	$(LIBRSVG_SRC)			\
+diff '--color=auto' -urN old/Makefile.in new/Makefile.in
+--- old/Makefile.in	2024-08-27 23:03:31.280000000 +0000
++++ new/Makefile.in	2024-08-27 23:04:43.660000000 +0000
+@@ -697,44 +697,44 @@
+ 	code-of-conduct.md
+ 
+ test_resources = \
+-	$(wildcard $(srcdir)/rsvg/tests/resources/*.ttf)	\
++	$(wildcard rsvg/tests/resources/*.ttf)	\
+ 	$(srcdir)/rsvg/tests/resources/fonts.conf		\
+ 	$(srcdir)/rsvg/tests/resources/README.md
+ 
+ test_fixtures = \
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/api/*.svg)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/cmdline/*.svg)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/cmdline/*.png)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/crash/*.svg)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/crash/*.png)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/errors/*)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/geometries/*)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/loading/*)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/loading/subdir/*)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/primitive_geometries/*)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/*.css)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/*.png)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/*.txt)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/adwaita/*.svg)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/adwaita/*.png)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/bugs/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/bugs/*.png)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg1.1/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg1.1/*.png)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg1.1/images/*)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg1.1/resources/*)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg2/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg2/*.png)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/bugs-reftests/*.svg)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg2-reftests/*.svg)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/reftests/svg2-reftests/*.png)	\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/render-crash/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/text/*.svg)			\
+-	$(wildcard $(srcdir)/rsvg/tests/fixtures/dimensions/*.svg)		\
+-	$(wildcard $(srcdir)/rsvg_convert/tests/fixtures/*.css)			\
+-	$(wildcard $(srcdir)/rsvg_convert/tests/fixtures/*.svg)			\
+-	$(wildcard $(srcdir)/rsvg_convert/tests/fixtures/*.png)
++	$(wildcard rsvg/tests/fixtures/api/*.svg)			\
++	$(wildcard rsvg/tests/fixtures/cmdline/*.svg)			\
++	$(wildcard rsvg/tests/fixtures/cmdline/*.png)			\
++	$(wildcard rsvg/tests/fixtures/crash/*.svg)			\
++	$(wildcard rsvg/tests/fixtures/crash/*.png)			\
++	$(wildcard rsvg/tests/fixtures/errors/*)			\
++	$(wildcard rsvg/tests/fixtures/geometries/*)			\
++	$(wildcard rsvg/tests/fixtures/loading/*)			\
++	$(wildcard rsvg/tests/fixtures/loading/subdir/*)		\
++	$(wildcard rsvg/tests/fixtures/primitive_geometries/*)	\
++	$(wildcard rsvg/tests/fixtures/reftests/*.css)		\
++	$(wildcard rsvg/tests/fixtures/reftests/*.svg)		\
++	$(wildcard rsvg/tests/fixtures/reftests/*.png)		\
++	$(wildcard rsvg/tests/fixtures/reftests/*.txt)		\
++	$(wildcard rsvg/tests/fixtures/reftests/adwaita/*.svg)	\
++	$(wildcard rsvg/tests/fixtures/reftests/adwaita/*.png)	\
++	$(wildcard rsvg/tests/fixtures/reftests/bugs/*.svg)		\
++	$(wildcard rsvg/tests/fixtures/reftests/bugs/*.png)		\
++	$(wildcard rsvg/tests/fixtures/reftests/svg1.1/*.svg)		\
++	$(wildcard rsvg/tests/fixtures/reftests/svg1.1/*.png)		\
++	$(wildcard rsvg/tests/fixtures/reftests/svg1.1/images/*)	\
++	$(wildcard rsvg/tests/fixtures/reftests/svg1.1/resources/*)	\
++	$(wildcard rsvg/tests/fixtures/reftests/svg2/*.svg)		\
++	$(wildcard rsvg/tests/fixtures/reftests/svg2/*.png)		\
++	$(wildcard rsvg/tests/fixtures/reftests/bugs-reftests/*.svg)	\
++	$(wildcard rsvg/tests/fixtures/reftests/svg2-reftests/*.svg)	\
++	$(wildcard rsvg/tests/fixtures/reftests/svg2-reftests/*.png)	\
++	$(wildcard rsvg/tests/fixtures/render-crash/*.svg)		\
++	$(wildcard rsvg/tests/fixtures/text/*.svg)			\
++	$(wildcard rsvg/tests/fixtures/dimensions/*.svg)		\
++	$(wildcard rsvg_convert/tests/fixtures/*.css)			\
++	$(wildcard rsvg_convert/tests/fixtures/*.svg)			\
++	$(wildcard rsvg_convert/tests/fixtures/*.png)
+ 
+ EXTRA_DIST = \
+ 	$(LIBRSVG_SRC)			\

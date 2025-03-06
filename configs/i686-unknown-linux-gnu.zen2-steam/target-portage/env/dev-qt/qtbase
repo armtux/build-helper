@@ -1,0 +1,1 @@
+MYCMAKEARGS="-DQT_HOST_PATH=/usr -DQt6ShaderTools_DIR=/usr/lib/cmake/Qt6ShaderTools"

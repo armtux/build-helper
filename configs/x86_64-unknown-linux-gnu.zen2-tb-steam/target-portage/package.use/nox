@@ -1,0 +1,5 @@
+app-editors/vim -X
+sys-apps/hwloc -X
+media-video/mpv -X
+www-client/firefox -X
+app-crypt/pinentry -X

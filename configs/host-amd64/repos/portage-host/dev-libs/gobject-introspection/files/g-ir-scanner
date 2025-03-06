@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+if [ "${CHOST}" != "${CBUILD}" ]; then
+	# This prevents g-ir-scanner from writing cache data to $HOME
+	export GI_SCANNER_DISABLE_CACHE=1
+	export GI_SCANNER_EXTRA_LD_LIBRARY_PATH="${ROOT}/usr/lib:${ROOT}/$(readlink -f /lib/gcc/${CHOST}/* | tail -n 1)"
+	export GI_SCANNER_DEBUG="save-temps"
+
+	CHOST=${CHOST} ROOT=${ROOT} exec /usr/bin/g-ir-scanner.wrapped \
+				--lib-dirs-envvar=NOTHING \
+				--use-ldd-wrapper=/usr/bin/g-ir-scanner-lddwrapper \
+				--use-binary-wrapper=/usr/bin/g-ir-scanner-qemuwrapper \
+				--add-include-path=${ROOT}usr/share/gir-1.0 \
+				--add-include-path=${ROOT}usr/lib/girepository-1.0 \
+				--sources-top-dirs="." \
+				--sources-top-dirs="gir" \
+				--sources-top-dirs="${S}" \
+				--sources-top-dirs="${P}" \
+				--sources-top-dirs="${S}/gir" \
+				--sources-top-dirs="${P}/gir" \
+				--sources-top-dirs="${S}/girepository" \
+				--sources-top-dirs="${P}/girepository" \
+				--sources-top-dirs="${S}/girepository/cmph" \
+				--sources-top-dirs="${P}/girepository/cmph" \
+				--sources-top-dirs="${ROOT}usr/include" \
+				--sources-top-dirs="${ROOT}usr/include/glib-2.0" \
+				--sources-top-dirs="${ROOT}usr/include/glib-2.0/glib" \
+				--sources-top-dirs="${ROOT}usr/include/glib-2.0/gio" \
+				--sources-top-dirs="${ROOT}usr/include/glib-2.0/gobject" \
+				--sources-top-dirs="${ROOT}lib" \
+				--sources-top-dirs="${ROOT}usr/lib" \
+				--sources-top-dirs="${ROOT}usr/lib/glib-2.0" \
+				--sources-top-dirs="${ROOT}usr/lib/glib-2.0/include" \
+				"${@//-I\/usr\/include/-I${ROOT}usr\/include}"
+fi
+	
+exec /usr/bin/g-ir-scanner.wrapped "$@"

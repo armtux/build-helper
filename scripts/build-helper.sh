@@ -613,6 +613,10 @@ else
 fi
 cd
 
+# remove user-defined GENTOO_MIRRORS
+[ "${GENTOO_MIRRORS}" != "" ] && \
+	 sed -i -e 's/^GENTOO_MIRRORS=.*$//' ${HOST_CONF}/target-portage/make.conf
+
 # tear down build environment mounts
 # TODO: ask user whether or not they want to unmount the work rather than automatically doing so (done?)
 UMOUNT_CHOICE="yes"

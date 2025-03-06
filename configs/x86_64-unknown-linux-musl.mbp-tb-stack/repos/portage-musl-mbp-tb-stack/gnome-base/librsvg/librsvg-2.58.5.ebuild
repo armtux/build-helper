@@ -379,7 +379,7 @@ multilib_src_configure() {
 			cross_compiling=yes
 		)
 		echo "[target.${CHOST}]" >> ${WORKDIR}/cargo_home/config.toml
-		echo "linker = ${CHOST}-gcc" >> ${WORKDIR}/cargo_home/config.toml
+		echo "linker = '${CHOST}-gcc'" >> ${WORKDIR}/cargo_home/config.toml
 	fi
 
 	ECONF_SOURCE=${S} \

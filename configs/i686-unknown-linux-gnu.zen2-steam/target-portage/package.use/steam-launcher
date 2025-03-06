@@ -1,0 +1,2 @@
+games-util/steam-launcher -dialogs -pulseaudio -steamruntime
+app-text/xmlto text

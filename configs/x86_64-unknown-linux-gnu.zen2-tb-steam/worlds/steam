@@ -1,0 +1,4 @@
+dev-util/wayland-scanner
+games-util/steam-launcher
+media-libs/graphene
+x11-libs/gdk-pixbuf-xlib

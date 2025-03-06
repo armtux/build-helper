@@ -14,7 +14,7 @@ export MNT_TYPE="bind"
 export HIST_TYPE="files"
 export TMP_TYPE="tmpfs"
 export MOUNT_HIST="${MOUNT_HIST:-no}"
-export GENTOO_MIRRORS="${GENTOO_MIRRORS} https://gentoo.osuosl.org"
+export GENTOO_MIRRORS="${GENTOO_MIRRORS}"
 export TARBALL_MIRROR="${TARBALL_MIRROR:-}"
 
 if [ "${BUILD_HIST}" = "no" ]
@@ -22,7 +22,7 @@ then
 	export BUILD_HIST='no'
 fi
 
-HELPER_CMD="./build-helper.sh x86_64-unknown-linux-musl:x86_64-unknown-linux-musl:x86_64-unknown-linux-gnu mbp-tb-stack:zen2-tb-stack:zen2-tb-slim"
+HELPER_CMD="./build-helper.sh x86_64-unknown-linux-musl:x86_64-unknown-linux-musl:x86_64-unknown-linux-gnu:x86_64-unknown-linux-gnu:i686-unknown-linux-gnu mbp-tb-stack:zen2-tb-stack:zen2-tb-slim:zen2-tb-steam:zen2-steam"
 
 if [ "${TERM_PROGRAM}" = "tmux" ]
 then

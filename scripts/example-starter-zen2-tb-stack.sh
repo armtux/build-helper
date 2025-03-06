@@ -14,7 +14,7 @@ export MNT_TYPE="bind"
 export HIST_TYPE="files"
 export TMP_TYPE="tmpfs"
 export MOUNT_HIST="${MOUNT_HIST:-no}"
-export GENTOO_MIRRORS="${GENTOO_MIRRORS} https://gentoo.osuosl.org"
+export GENTOO_MIRRORS="${GENTOO_MIRRORS}"
 export TARBALL_MIRROR="${TARBALL_MIRROR:-}"
 
 if [ "${BUILD_HIST}" = "no" ]

@@ -1,0 +1,1 @@
+/var/db/repos/gentoo/profiles/default/linux/x86/23.0/i686/hardened

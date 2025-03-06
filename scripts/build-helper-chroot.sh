@@ -42,6 +42,10 @@ CHROOT_ERROR="no"
 
 # initially set to empty
 BUILD_HELPER_CHROOT_SOURCE="$(readlink -f $0)"
+if [ "${BUILD_HELPER_CHROOT_RETRY}" = "" ]
+then
+	export BUILD_HELPER_CHROOT_RETRY="${BUILD_HELPER_CHROOT_SOURCE}"
+fi
 
 # EXIT trap triggering rescue shell and resume dialog
 resume_mode() {
@@ -59,7 +63,7 @@ resume_mode() {
 		set -x
 		case "${resume_choice}" in
 			retry)
-				$3 $1
+				${BUILD_HELPER_CHROOT_RETRY} $1
 			;;
 			abort)
 				exit
@@ -115,6 +119,12 @@ do
 done
 # source chroot profile, as per gentoo handbook
 source /etc/profile
+
+# set user-defined GENTOO_MIRRORS
+[ "${GENTOO_MIRRORS}" != "" ] && \
+	echo "GENTOO_MIRRORS=\"${GENTOO_MIRRORS}\"" >> /etc/portage/make.conf && \
+	echo "GENTOO_MIRRORS=\"${GENTOO_MIRRORS}\"" >> ${BUILD_CONF}/target-portage/make.conf
+
 # don't rebuild rust by default unless triggered by conditions below
 REBUILD_RUST="no"
 # initial chroot steps before cross-compiling, runs/logged with the first crossdev target
@@ -218,11 +228,14 @@ then
 		# initially point to first listed target for each unique crossdev target toolchain being built
 		for unique_target in `echo ${1} | sed -e 's/:/\n/g' | sort -u`
 		do
-			if [ -h /usr/${unique_target} ]
+			if $(ls -1v /usr/${unique_target}.*)
 			then
-				rm /usr/${unique_target}
+				if [ -h /usr/${unique_target} ]
+				then
+					rm /usr/${unique_target}
+				fi
+				ln -s `ls -1v /usr/${unique_target}.* | grep "/usr/" | grep -v skeleton | sed -e 's/://' | tail -n 1` /usr/${unique_target}
 			fi
-			ln -s `ls -1v /usr/${unique_target}.* | grep "/usr/" | grep -v skeleton | sed -e 's/://' | tail -n 1` /usr/${unique_target}
 		done
 		CHROOT_RESUME_LINENO="0"
 		CHROOT_RESUME_LINENO="$LINENO"
@@ -263,9 +276,15 @@ then
 			#ln -s lib /usr/${unique_target}/lib64
 			#ln -s lib /usr/${unique_target}/usr/lib64
 			mkdir -p /usr/${unique_target}/usr/lib
-			ln -s lib /usr/${unique_target}/usr/lib64
+			if $(echo "${BUILD_ARCH}" | grep -q '64')
+			then
+				ln -s lib /usr/${unique_target}/usr/lib64
+				ln -s usr/lib /usr/${unique_target}/lib64
+			else
+				ln -s lib /usr/${unique_target}/usr/lib32
+				ln -s usr/lib /usr/${unique_target}/lib32
+			fi
 			ln -s usr/lib /usr/${unique_target}/lib
-			ln -s usr/lib /usr/${unique_target}/lib64
 			mkdir /usr/${unique_target}/usr/bin
 			ln -s bin /usr/${unique_target}/usr/sbin
 			ln -s usr/bin /usr/${unique_target}/bin
@@ -404,18 +423,23 @@ then
 		emerge -1q rust
 		# signal to non-chroot script that crossdev target environments are ready for next targets in line for chroot
 		# TODO: replace with flock
+		CHROOT_RESUME_LINENO="$LINENO"
 		for unique_target in `echo ${1} | sed -e 's/:/\n/g' | sort -u`
 		do
 			# remove rust dependencies to rebuild later with correct custom target cflags
-			TEMP_TARGET="$(ls -1 ${BUILD_CONF}/.. | grep ${unique_target} | head -n 1)"
-			${unique_target}-emerge --root=/usr/${unique_target}.skeleton \
-				--sysroot=/usr/${unique_target}.skeleton -qC $(cat ${BUILD_CONF}/../${TEMP_TARGET}/worlds/rust.clean)
-			${unique_target}-emerge --root=/usr/${unique_target}.skeleton \
-				--sysroot=/usr/${unique_target}.skeleton -q --depclean
-			emerge -1kq cross-${unique_target}/gcc \
-				cross-${unique_target}/$(grep ELIBC ${BUILD_CONF}/../${TEMP_TARGET}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//')
+			if [ "$(ls -l /usr/${unique_target} | sed -e 's/^.*-> //')" = "/usr/${unique_target}.skeleton" ]
+			then
+				TEMP_TARGET="$(ls -1 ${BUILD_CONF}/.. | grep ${unique_target} | head -n 1)"
+				${unique_target}-emerge --root=/usr/${unique_target}.skeleton \
+					--sysroot=/usr/${unique_target}.skeleton -qC $(cat ${BUILD_CONF}/../${TEMP_TARGET}/worlds/rust.clean)
+				${unique_target}-emerge --root=/usr/${unique_target}.skeleton \
+					--sysroot=/usr/${unique_target}.skeleton -q --depclean
+				emerge -1kq cross-${unique_target}/gcc \
+					cross-${unique_target}/$(grep ELIBC ${BUILD_CONF}/../${TEMP_TARGET}/target-portage/profile/make.defaults | sed -e 's/ELIBC="//' -e 's/"//')
+			fi
 			touch /tmp/cross_ready.${unique_target}
 		done
+		CHROOT_RESUME_LINENO="0"
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
 
@@ -763,6 +787,10 @@ fi
 CHROOT_RESUME_LINENO="0"
 export WORLD_TREE="${WORLD_TREE}"
 
+# modify target ldd for use with gobject-introspection qemu wrapper
+sed -i -e 's/x $rtld/x ${ROOT}$rtld/' -e 's/${rtld} --verify/${ROOT}${rtld} --verify/' -e 's/RTLD=${rtld}/RTLD=${ROOT}${rtld}/' \
+	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/bin/ldd
+
 # build / update crossdev target world
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
@@ -816,9 +844,18 @@ then
 	fi
 	mkdir -p ../squashfs/etc
 	mkdir -p ../squashfs/usr/lib
-	ln -s lib ../squashfs/usr/lib64
+	if $(echo "${BUILD_ARCH}" | grep -q '64')
+	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		ln -s lib ../squashfs/usr/lib64
+		ln -s usr/lib ../squashfs/lib64
+	else
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		ln -s lib ../squashfs/usr/lib32
+		ln -s usr/lib ../squashfs/lib32
+	fi
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	ln -s usr/lib ../squashfs/lib
-	ln -s usr/lib ../squashfs/lib64
 	mkdir ../squashfs/usr/bin
 	ln -s bin ../squashfs/usr/sbin
 	ln -s usr/bin ../squashfs/bin
@@ -1073,9 +1110,15 @@ do
 		cp -a ../squashfs$([ "${WORLD_BASE}" != "base" ] && echo -n ".${WORLD_BASE}")/var/lib/portage/world \
 			../squashfs.${world_img}/var/lib/portage/world
 		mkdir -p ../squashfs.${world_img}/usr/lib
-		ln -s lib ../squashfs.${world_img}/usr/lib64
+		if $(echo "${BUILD_ARCH}" | grep -q '64')
+		then
+			ln -s lib ../squashfs.${world_img}/usr/lib64
+			ln -s usr/lib ../squashfs.${world_img}/lib64
+		else
+			ln -s lib ../squashfs.${world_img}/usr/lib32
+			ln -s usr/lib ../squashfs.${world_img}/lib32
+		fi
 		ln -s usr/lib ../squashfs.${world_img}/lib
-		ln -s usr/lib ../squashfs.${world_img}/lib64
 		mkdir ../squashfs.${world_img}/usr/bin
 		ln -s bin ../squashfs.${world_img}/usr/sbin
 		ln -s usr/bin ../squashfs.${world_img}/bin
@@ -1475,6 +1518,10 @@ then
 	sed -i -e 's@^INSTALL_MASK@#INSTALL_MASK@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/env/sys-devel/gcc
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
+
+# remove user-defined GENTOO_MIRRORS
+[ "${GENTOO_MIRRORS}" != "" ] && \
+	 sed -i -e 's/^GENTOO_MIRRORS=.*$//' ${BUILD_CONF}/target-portage/make.conf
 
 #TODO: Implement for non-uefi and other architectures
 mkdir -p "../${BUILD_NAME}-${BUILD_DATE}/EFI/boot"

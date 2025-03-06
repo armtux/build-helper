@@ -1,0 +1,13 @@
+--- a/configure
++++ b/configure
+@@ -6706,8 +6706,8 @@
+ enabled libharfbuzz       && require_pkg_config libharfbuzz harfbuzz hb.h hb_buffer_create
+ enabled libglslang && { check_lib spirv_compiler glslang/Include/glslang_c_interface.h glslang_initialize_process \
+-                            -lglslang -lMachineIndependent -lOSDependent -lHLSL -lOGLCompiler -lGenericCodeGen \
++                            -lglslang \
+                             -lSPVRemapper -lSPIRV -lSPIRV-Tools-opt -lSPIRV-Tools -lpthread -lstdc++ -lm ||
+                         require spirv_compiler glslang/Include/glslang_c_interface.h glslang_initialize_process \
+-                            -lglslang -lOSDependent -lHLSL -lOGLCompiler \
++                            -lglslang \
+                             -lSPVRemapper -lSPIRV -lSPIRV-Tools-opt -lSPIRV-Tools -lpthread -lstdc++ -lm; }
+ enabled libgme            && { check_pkg_config libgme libgme gme/gme.h gme_new_emu ||

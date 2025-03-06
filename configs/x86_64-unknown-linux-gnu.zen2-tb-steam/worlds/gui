@@ -1,0 +1,13 @@
+app-arch/unzip
+dev-libs/expat
+dev-util/vulkan-tools
+gui-apps/foot
+gui-apps/swayidle
+gui-apps/swaylock
+gui-wm/sway
+media-fonts/noto
+media-libs/libepoxy
+sys-apps/pciutils
+x11-apps/mesa-progs
+x11-libs/libpciaccess
+x11-themes/adwaita-icon-theme

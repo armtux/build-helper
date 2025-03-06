@@ -1,0 +1,5 @@
+cross-i686-unknown-linux-gnu/linux-headers x86 ~x86 -amd64 -~amd64
+cross-i686-unknown-linux-gnu/glibc x86 ~x86 -amd64 -~amd64
+cross-i686-unknown-linux-gnu/binutils x86 ~x86 -amd64 -~amd64
+cross-i686-unknown-linux-gnu/gcc x86 ~x86 -amd64 -~amd64
+cross-i686-unknown-linux-gnu/gdb x86 ~x86 -amd64 -~amd64

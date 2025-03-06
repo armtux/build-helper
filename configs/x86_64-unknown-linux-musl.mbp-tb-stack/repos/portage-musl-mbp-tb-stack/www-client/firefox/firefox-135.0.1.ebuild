@@ -55,7 +55,7 @@ MOZ_PV_DISTFILES="${MOZ_PV}${MOZ_PV_SUFFIX}"
 MOZ_P_DISTFILES="${MOZ_PN}-${MOZ_PV_DISTFILES}"
 
 inherit autotools check-reqs desktop flag-o-matic gnome2-utils linux-info llvm-r1 multiprocessing \
-	optfeature pax-utils python-any-r1 readme.gentoo-r1 rust rust-toolchain toolchain-funcs virtualx xdg
+	optfeature pax-utils python-any-r1 readme.gentoo-r1 rust toolchain-funcs virtualx xdg
 
 MOZ_SRC_BASE_URI="https://archive.mozilla.org/pub/${MOZ_PN}/releases/${MOZ_PV}"
 
@@ -811,13 +811,13 @@ src_configure() {
 		--enable-release \
 		--enable-system-pixman \
 		--enable-system-policies \
-		--host="$(rust_abi ${CBUILD:-${CHOST}})" \
+		--host="${CBUILD:-${CHOST}}" \
 		--libdir="${EPREFIX}/usr/$(get_libdir)" \
 		--prefix="${EPREFIX}/usr" \
-		--target="$(rust_abi)" \
+		--target="${CHOST}" \
 		--without-ccache \
 		--with-intl-api \
-		--with-libclang-path="$(/usr/lib/llvm/${LLVM_SLOT}/bin/llvm-config --libdir)" \
+		--with-libclang-path="$(llvm-config --libdir)" \
 		--with-system-ffi \
 		--with-system-nspr \
 		--with-system-nss \

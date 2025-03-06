@@ -1,4 +1,5 @@
 RUST_CROSS_TARGETS=(
 	"X86:x86_64-crossdev-linux-musl:x86_64-unknown-linux-musl"
 	"X86:x86_64-unknown-linux-gnu:x86_64-unknown-linux-gnu"
+	"X86:i686-unknown-linux-gnu:i686-unknown-linux-gnu"
 )

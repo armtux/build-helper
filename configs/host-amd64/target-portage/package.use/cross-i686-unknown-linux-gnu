@@ -1,0 +1,4 @@
+cross-i686-unknown-linux-gnu/binutils -multilib
+cross-i686-unknown-linux-gnu/linux-headers -selinux -multilib
+cross-i686-unknown-linux-gnu/glibc static-libs -selinux -libraries -multilib
+cross-i686-unknown-linux-gnu/gcc -selinux -d -objc -objc++ -objc-gc -vtv -sanitize -multilib
