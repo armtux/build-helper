@@ -69,7 +69,7 @@ sys-apps/hwdata
 sys-auth/polkit
 sys-devel/bc
 sys-devel/crossdev
-sys-fs/squashfs-tools
+sys-fs/squashfs-tools-ng
 sys-kernel/linux-firmware
 sys-libs/argp-standalone
 virtual/fortran

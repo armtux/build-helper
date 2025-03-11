@@ -1416,7 +1416,8 @@ then
 	rm ../initramfs/base
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-mksquashfs . ../initramfs/base -comp xz -b 1048576 -Xdict-size 1048576
+#mksquashfs . ../initramfs/base -comp xz -b 1048576 -Xdict-size 1048576
+gensquashfs -D . -j ${BUILD_JOBS} -k -q ../initramfs/base
 
 # separate userland base packages from kernel binary if triggered by target configuration
 if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base ]
@@ -1438,7 +1439,8 @@ do
 	then
 		rm ../initramfs/${world_img}
 	fi
-	mksquashfs . ../initramfs/${world_img} -comp xz -b 1048576 -Xdict-size 1048576
+	#mksquashfs . ../initramfs/${world_img} -comp xz -b 1048576 -Xdict-size 1048576
+	gensquashfs -D . -j ${BUILD_JOBS} -k -q ../initramfs/${world_img}
 
 	# separate userland extra packages from kernel binary if triggered by target configuration
 	if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]

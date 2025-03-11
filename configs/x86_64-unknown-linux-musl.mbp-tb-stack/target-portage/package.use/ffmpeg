@@ -1,1 +1,1 @@
-media-video/ffmpeg vaapi alsa zlib x264
+media-video/ffmpeg vaapi alsa zlib x264 libdrm

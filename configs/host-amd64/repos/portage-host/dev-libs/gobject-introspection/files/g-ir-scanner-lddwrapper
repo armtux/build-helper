@@ -15,4 +15,4 @@ qemu-$(echo ${CHOST} | sed -e 's/-.*//' | sed -E 's/i.86/i386/') \
 			-L ${ROOT} \
 			-E LD_PRELOAD="" \
 			-E LD_LIBRARY_PATH="${ROOT}/usr/lib:${ROOT}/lib:.libs:${GIR_EXTRA_LIBS_PATH}" \
-			${ROOT}/bin/bash ${ROOT}/bin/ldd ${FULLCOMMAND}
+			$(echo ${CHOST} | cut -d '-' -f 4 | grep -qv musl && echo -n "${ROOT}/bin/bash ")${ROOT}/bin/ldd ${FULLCOMMAND}

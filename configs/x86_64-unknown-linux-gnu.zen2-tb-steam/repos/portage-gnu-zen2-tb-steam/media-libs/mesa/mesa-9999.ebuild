@@ -125,6 +125,7 @@ RDEPEND="
 	vdpau? ( >=x11-libs/libvdpau-1.5:=[${MULTILIB_USEDEP}] )
 	video_cards_radeonsi? ( virtual/libelf:0=[${MULTILIB_USEDEP}] )
 	video_cards_zink? ( media-libs/vulkan-loader:=[${MULTILIB_USEDEP}] )
+	vulkan? ( virtual/libudev:= )
 	selinux? ( sys-libs/libselinux[${MULTILIB_USEDEP}] )
 	wayland? ( >=dev-libs/wayland-1.18.0[${MULTILIB_USEDEP}] )
 	${LIBDRM_DEPSTRING}[video_cards_freedreno?,video_cards_intel?,video_cards_nouveau?,video_cards_vc4?,video_cards_vivante?,video_cards_vmware?,${MULTILIB_USEDEP}]
@@ -151,7 +152,7 @@ RDEPEND="${RDEPEND}
 DEPEND="${RDEPEND}
 	video_cards_d3d12? ( >=dev-util/directx-headers-1.614.1[${MULTILIB_USEDEP}] )
 	valgrind? ( dev-debug/valgrind )
-	wayland? ( >=dev-libs/wayland-protocols-1.38 )
+	wayland? ( >=dev-libs/wayland-protocols-1.41 )
 	X? (
 		x11-libs/libXrandr[${MULTILIB_USEDEP}]
 		x11-base/xorg-proto
@@ -160,8 +161,9 @@ DEPEND="${RDEPEND}
 BDEPEND="
 	${PYTHON_DEPS}
 	opencl? (
+		>=dev-build/meson-1.7.0
+		>=dev-util/bindgen-0.71.0
 		${RUST_DEPEND}
-		>=dev-util/bindgen-0.58.0
 	)
 	>=dev-build/meson-1.4.1
 	app-alternatives/yacc
@@ -180,7 +182,8 @@ BDEPEND="
 	vulkan? (
 		dev-util/glslang
 		video_cards_nvk? (
-			>=dev-util/bindgen-0.68.1
+			>=dev-build/meson-1.7.0
+			>=dev-util/bindgen-0.71.0
 			>=dev-util/cbindgen-0.26.0
 			${RUST_DEPEND}
 		)

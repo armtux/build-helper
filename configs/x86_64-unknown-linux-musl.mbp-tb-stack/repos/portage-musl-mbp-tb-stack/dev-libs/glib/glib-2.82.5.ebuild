@@ -22,7 +22,7 @@ INTROSPECTION_BUILD_DIR="${WORKDIR}/${INTROSPECTION_P}-build"
 
 LICENSE="LGPL-2.1+"
 SLOT="2"
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha ~amd64 arm arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
 IUSE="dbus debug +elf doc +introspection +mime selinux static-libs sysprof systemtap test utils xattr"
 RESTRICT="!test? ( test )"
 
@@ -244,16 +244,7 @@ multilib_src_configure() {
 			-Dglib:oss_fuzz=disabled
 			-Dglib:libelf=disabled
 			-Dglib:multiarch=false
-			$(tc-is-cross-compiler && echo -n '-Dgi_cross_use_prebuilt_gi=true -Dgi_cross_binary_wrapper=/usr/bin/g-ir-scanner-qemuwrapper -Dgi_cross_ldd_wrapper=/usr/bin/g-ir-scanner-lddwrapper')
 		)
-
-		if tc-is-cross-compiler ; then
-			export ORIG_CC="$(tc-getCC)"
-			export CC="$(tc-getCC) -L${ROOT}/$(get_libdir)"
-			export ORIG_LDFLAGS="${LDFLAGS}"
-			#export LDFLAGS="-Wl,-L,${ROOT}/$(get_libdir) -Wl,-rpath,${ROOT}/$(get_libdir) ${LDFLAGS}"
-			export LDFLAGS="-Wl,-L,${ROOT}/$(get_libdir) ${LDFLAGS}"
-		fi
 
 		ORIG_SOURCE_DIR=${EMESON_SOURCE}
 		EMESON_SOURCE=${INTROSPECTION_SOURCE_DIR}
@@ -299,22 +290,6 @@ multilib_src_configure() {
 
 		# Add the path to introspection libraries so that glib can call gir utilities
 		export LD_LIBRARY_PATH="${INTROSPECTION_LIB_DIR}:${LD_LIBRARY_PATH}"
-
-		if tc-is-cross-compiler ; then
-			#sed -i -e "s#prefix=.*#prefix=${INTROSPECTION_LIB_DIR}/..#" ${INTROSPECTION_LIB_DIR}/pkgconfig/gobject-introspection-1.0.pc || die
-			for i in ${INTROSPECTION_LIB_DIR}/pkgconfig/*.pc; do
-				sed -i -e "s#prefix=.*#prefix=${T}/bootstrap-gi-prefix#" ${i} || die
-			done
-			export PKG_CONFIG="pkg-config"
-			export PKG_CONFIG_SYSROOT_DIR="/"
-			export PKG_CONFIG_LIBDIR="${INTROSPECTION_LIB_DIR}/pkgconfig"
-			export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}:$(pkg-config --variable pc_path pkg-config | sed -e "s#/usr#${ROOT}/usr#g")"
-			export LD_LIBRARY_PATH=""
-			export CC="${ORIG_CC}"
-			#export LDFLAGS="-L${INTROSPECTION_LIB_DIR} -Wl,-rpath,${INTROSPECTION_LIB_DIR} ${ORIG_LDFLAGS}"
-			export LDFLAGS="-L${INTROSPECTION_LIB_DIR} ${ORIG_LDFLAGS}"
-			rm ${T}/meson.${CHOST}.${ABI}.ini || die
-		fi
 
 		# Add the paths to the gobject-introspection python modules to python path so they can be imported
 		export PYTHONPATH="${INTROSPECTION_LIB_DIR}/gobject-introspection:${PYTHONPATH}"

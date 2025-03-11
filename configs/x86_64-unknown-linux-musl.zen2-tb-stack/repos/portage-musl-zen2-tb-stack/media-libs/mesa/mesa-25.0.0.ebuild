@@ -160,8 +160,9 @@ DEPEND="${RDEPEND}
 BDEPEND="
 	${PYTHON_DEPS}
 	opencl? (
+		>=dev-build/meson-1.7.0
+		>=dev-util/bindgen-0.71.0
 		${RUST_DEPEND}
-		>=dev-util/bindgen-0.58.0
 	)
 	>=dev-build/meson-1.4.1
 	app-alternatives/yacc
@@ -180,7 +181,8 @@ BDEPEND="
 	vulkan? (
 		dev-util/glslang
 		video_cards_nvk? (
-			>=dev-util/bindgen-0.68.1
+			>=dev-build/meson-1.7.0
+			>=dev-util/bindgen-0.71.0
 			>=dev-util/cbindgen-0.26.0
 			${RUST_DEPEND}
 		)
@@ -391,18 +393,6 @@ multilib_src_configure() {
 	if ! use video_cards_r300 &&
 	   ! use video_cards_r600; then
 		gallium_enable video_cards_radeon r300 r600
-	fi
-
-	if use video_cards_radeonsi && use video_cards_virgl; then
-		emesonargs+=(
-			-Damdgpu-virtio=true
-		)
-	fi
-
-	if use video_cards_intel && use video_cards_virgl; then
-		emesonargs+=(
-			-Dintel-virtio-experimental=true
-		)
 	fi
 
 	if use llvm && use opencl; then

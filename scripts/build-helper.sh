@@ -601,7 +601,8 @@ then
 	then
 		mount -t tmpfs tmpfs "${MNT_PATH}/m/var/tmp/portage"
 	fi
-	chroot "${MNT_PATH}/m" /bin/bash -c "cd /mnt && mksquashfs . /var/tmp/portage/dev.sqfs -comp xz -b 1048576 -Xdict-size 1048576"
+	#chroot "${MNT_PATH}/m" /bin/bash -c "cd /mnt && mksquashfs . /var/tmp/portage/dev.sqfs -comp xz -b 1048576 -Xdict-size 1048576"
+	chroot "${MNT_PATH}/m" /bin/bash -c "cd /mnt && gensquashfs -D . -j ${BUILD_JOBS} -k -q /var/tmp/portage/dev.sqfs"
 	mv "${MNT_PATH}/m/var/tmp/portage/dev.sqfs" "${BUILD_HELPER_TREE}/history/${BUILD_DATE}.sqfs"
 else
 	mkdir -p "${BUILD_HELPER_TREE}/history/${BUILD_DATE}"

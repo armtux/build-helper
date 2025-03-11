@@ -1,0 +1,13 @@
+# hold off temporarily
+=llvm-core/llvm-common-20.1*
+=llvm-core/llvm-20.1*
+=llvm-core/llvmgold-20*
+=llvm-core/llvm-toolchain-symlinks-20.1*
+=llvm-core/clang-common-20.1*
+=llvm-core/clang-20.1*
+=llvm-core/clang-toolchain-symlinks-20.1*
+=llvm-core/clang-runtime-20.1*
+=llvm-core/libclc-20.1*
+=llvm-runtimes/openmp-20.1*
+=llvm-runtimes/compiler-rt-20.1*
+=llvm-runtimes/compiler-rt-sanitizers-20.1*
