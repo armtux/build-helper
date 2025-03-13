@@ -1,0 +1,5 @@
+cross-x86_64-unknown-linux-musl/binutils amd64 ~amd64
+cross-x86_64-unknown-linux-musl/gcc amd64 ~amd64
+cross-x86_64-unknown-linux-musl/linux-headers amd64 ~amd64
+cross-x86_64-unknown-linux-musl/musl amd64 ~amd64
+cross-x86_64-unknown-linux-musl/gdb amd64 ~amd64

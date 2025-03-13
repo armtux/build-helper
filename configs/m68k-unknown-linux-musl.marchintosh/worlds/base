@@ -1,0 +1,5 @@
+@world
+dev-libs/libbsd
+dev-libs/openssl
+net-misc/dhcpcd
+sys-apps/toybox

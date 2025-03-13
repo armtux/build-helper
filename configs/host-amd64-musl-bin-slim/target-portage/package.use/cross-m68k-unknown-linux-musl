@@ -1,0 +1,4 @@
+cross-m68k-unknown-linux-musl/binutils -multilib
+cross-m68k-unknown-linux-musl/linux-headers -selinux -multilib
+cross-m68k-unknown-linux-musl/musl -selinux -libraries -multilib
+cross-m68k-unknown-linux-musl/gcc -sanitize -vtv -selinux -d -objc -objc++ -objc-gc -vtv -sanitize -multilib

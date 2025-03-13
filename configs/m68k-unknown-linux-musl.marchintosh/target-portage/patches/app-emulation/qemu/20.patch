@@ -1,0 +1,140 @@
+From 286f743d2236a30e37de8a7789364af6232bc45a Mon Sep 17 00:00:00 2001
+From: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+Date: Mon, 20 Jan 2025 00:16:04 +0300
+Subject: [PATCH] Revert "amd_iommu: Add support for pass though mode"
+
+This reverts commit c1f46999ef506d9854534560a94d02cf3cf9edd1.
+---
+ hw/i386/amd_iommu.c | 71 ++++++++++-----------------------------------
+ hw/i386/amd_iommu.h |  3 --
+ 2 files changed, 15 insertions(+), 59 deletions(-)
+
+diff --git a/hw/i386/amd_iommu.c b/hw/i386/amd_iommu.c
+index 6b13ce894b1..03b6a969c4d 100644
+--- a/hw/i386/amd_iommu.c
++++ b/hw/i386/amd_iommu.c
+@@ -1426,7 +1426,6 @@ static AddressSpace *amdvi_host_dma_iommu(PCIBus *bus, void *opaque, int devfn)
+     AMDVIState *s = opaque;
+     AMDVIAddressSpace **iommu_as, *amdvi_dev_as;
+     int bus_num = pci_bus_num(bus);
+-    X86IOMMUState *x86_iommu = X86_IOMMU_DEVICE(s);
+ 
+     iommu_as = s->address_spaces[bus_num];
+ 
+@@ -1451,13 +1450,13 @@ static AddressSpace *amdvi_host_dma_iommu(PCIBus *bus, void *opaque, int devfn)
+          * Memory region relationships looks like (Address range shows
+          * only lower 32 bits to make it short in length...):
+          *
+-         * |--------------------+-------------------+----------|
+-         * | Name               | Address range     | Priority |
+-         * |--------------------+-------------------+----------+
+-         * | amdvi-root         | 00000000-ffffffff |        0 |
+-         * |  amdvi-iommu_nodma  | 00000000-ffffffff |       0 |
+-         * |  amdvi-iommu_ir     | fee00000-feefffff |       1 |
+-         * |--------------------+-------------------+----------|
++         * |-----------------+-------------------+----------|
++         * | Name            | Address range     | Priority |
++         * |-----------------+-------------------+----------+
++         * | amdvi_root      | 00000000-ffffffff |        0 |
++         * |  amdvi_iommu    | 00000000-ffffffff |        1 |
++         * |  amdvi_iommu_ir | fee00000-feefffff |       64 |
++         * |-----------------+-------------------+----------|
+          */
+         memory_region_init_iommu(&amdvi_dev_as->iommu,
+                                  sizeof(amdvi_dev_as->iommu),
+@@ -1467,34 +1466,16 @@ static AddressSpace *amdvi_host_dma_iommu(PCIBus *bus, void *opaque, int devfn)
+         memory_region_init(&amdvi_dev_as->root, OBJECT(s),
+                            "amdvi_root", UINT64_MAX);
+         address_space_init(&amdvi_dev_as->as, &amdvi_dev_as->root, name);
++        memory_region_init_io(&amdvi_dev_as->iommu_ir, OBJECT(s),
++                              &amdvi_ir_ops, s, "amd_iommu_ir",
++                              AMDVI_INT_ADDR_SIZE);
++        memory_region_add_subregion_overlap(&amdvi_dev_as->root,
++                                            AMDVI_INT_ADDR_FIRST,
++                                            &amdvi_dev_as->iommu_ir,
++                                            64);
+         memory_region_add_subregion_overlap(&amdvi_dev_as->root, 0,
+                                             MEMORY_REGION(&amdvi_dev_as->iommu),
+-                                            0);
+-
+-        /* Build the DMA Disabled alias to shared memory */
+-        memory_region_init_alias(&amdvi_dev_as->iommu_nodma, OBJECT(s),
+-                                 "amdvi-sys", &s->mr_sys, 0,
+-                                 memory_region_size(&s->mr_sys));
+-        memory_region_add_subregion_overlap(&amdvi_dev_as->root, 0,
+-                                            &amdvi_dev_as->iommu_nodma,
+-                                            0);
+-        /* Build the Interrupt Remapping alias to shared memory */
+-        memory_region_init_alias(&amdvi_dev_as->iommu_ir, OBJECT(s),
+-                                 "amdvi-ir", &s->mr_ir, 0,
+-                                 memory_region_size(&s->mr_ir));
+-        memory_region_add_subregion_overlap(MEMORY_REGION(&amdvi_dev_as->iommu),
+-                                            AMDVI_INT_ADDR_FIRST,
+-                                            &amdvi_dev_as->iommu_ir, 1);
+-
+-        if (!x86_iommu->pt_supported) {
+-            memory_region_set_enabled(&amdvi_dev_as->iommu_nodma, false);
+-            memory_region_set_enabled(MEMORY_REGION(&amdvi_dev_as->iommu),
+-                                      true);
+-        } else {
+-            memory_region_set_enabled(MEMORY_REGION(&amdvi_dev_as->iommu),
+-                                      false);
+-            memory_region_set_enabled(&amdvi_dev_as->iommu_nodma, true);
+-        }
++                                            1);
+     }
+     return &iommu_as[devfn]->as;
+ }
+@@ -1635,35 +1616,6 @@ static void amdvi_sysbus_realize(DeviceState *dev, Error **errp)
+                           "amdvi-mmio", AMDVI_MMIO_SIZE);
+     memory_region_add_subregion(get_system_memory(), AMDVI_BASE_ADDR,
+                                 &s->mr_mmio);
+-
+-    /* Create the share memory regions by all devices */
+-    memory_region_init(&s->mr_sys, OBJECT(s), "amdvi-sys", UINT64_MAX);
+-
+-    /* set up the DMA disabled memory region */
+-    memory_region_init_alias(&s->mr_nodma, OBJECT(s),
+-                             "amdvi-nodma", get_system_memory(), 0,
+-                             memory_region_size(get_system_memory()));
+-    memory_region_add_subregion_overlap(&s->mr_sys, 0,
+-                                        &s->mr_nodma, 0);
+-
+-    /* set up the Interrupt Remapping memory region */
+-    memory_region_init_io(&s->mr_ir, OBJECT(s), &amdvi_ir_ops,
+-                          s, "amdvi-ir", AMDVI_INT_ADDR_SIZE);
+-    memory_region_add_subregion_overlap(&s->mr_sys, AMDVI_INT_ADDR_FIRST,
+-                                        &s->mr_ir, 1);
+-
+-    /* AMD IOMMU with x2APIC mode requires xtsup=on */
+-    if (x86ms->apic_id_limit > 255 && !s->xtsup) {
+-        error_report("AMD IOMMU with x2APIC confguration requires xtsup=on");
+-        exit(EXIT_FAILURE);
+-    }
+-    if (s->xtsup) {
+-        if (kvm_irqchip_is_split() && !kvm_enable_x2apic()) {
+-            error_report("AMD IOMMU xtsup=on requires support on the KVM side");
+-            exit(EXIT_FAILURE);
+-        }
+-    }
+-
+     pci_setup_iommu(bus, &amdvi_iommu_ops, s);
+     amdvi_init(s);
+ }
+diff --git a/hw/i386/amd_iommu.h b/hw/i386/amd_iommu.h
+index e0dac4d9a96..e5c2ae94f24 100644
+--- a/hw/i386/amd_iommu.h
++++ b/hw/i386/amd_iommu.h
+@@ -354,9 +354,6 @@ struct AMDVIState {
+     uint32_t pprlog_tail;        /* ppr log tail */
+ 
+     MemoryRegion mr_mmio;              /* MMIO region                  */
+-    MemoryRegion mr_sys;
+-    MemoryRegion mr_nodma;
+-    MemoryRegion mr_ir;
+     uint8_t mmior[AMDVI_MMIO_SIZE];    /* read/write MMIO              */
+     uint8_t w1cmask[AMDVI_MMIO_SIZE];  /* read/write 1 clear mask      */
+     uint8_t romask[AMDVI_MMIO_SIZE];   /* MMIO read/only mask          */
+-- 
+GitLab
+

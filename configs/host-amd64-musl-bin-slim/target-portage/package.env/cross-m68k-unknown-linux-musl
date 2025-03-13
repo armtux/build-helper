@@ -1,0 +1,5 @@
+cross-m68k-unknown-linux-musl/linux-headers cross-m68k-unknown-linux-musl/linux-headers.conf
+cross-m68k-unknown-linux-musl/musl cross-m68k-unknown-linux-musl/musl.conf
+cross-m68k-unknown-linux-musl/binutils cross-m68k-unknown-linux-musl/binutils.conf
+cross-m68k-unknown-linux-musl/gcc cross-m68k-unknown-linux-musl/gcc.conf
+cross-m68k-unknown-linux-musl/gdb cross-m68k-unknown-linux-musl/gdb.conf

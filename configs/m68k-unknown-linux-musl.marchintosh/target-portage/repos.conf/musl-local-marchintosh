@@ -1,0 +1,5 @@
+[musl-local-marchintosh]
+location = /var/db/repos/portage-musl-marchintosh
+priority = 10
+masters = gentoo
+auto-sync = no

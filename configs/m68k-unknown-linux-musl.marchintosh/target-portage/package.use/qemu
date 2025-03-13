@@ -1,0 +1,3 @@
+app-emulation/qemu alsa usb vfio slirp virgl opengl virtfs -doc aio -bzip2 -curl -gnutls -jpeg -ncurses -nls -oss -png vhost-net -vnc
+dev-libs/glib -mime
+dev-libs/libpcre2 -bzip2

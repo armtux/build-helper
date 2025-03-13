@@ -1464,22 +1464,45 @@ then
 		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/squashfs \
 		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/overlayfs \
 		lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p
-	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/drivers/block/{loop,virtio_blk}* \
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/drivers/block/loop* ] && \
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/drivers/block/loop* \
 		lib/modules/${BUILD_KERNEL_VER}/kernel/drivers/block/
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/drivers/block/virtio_blk* ] && \
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/drivers/block/virtio_blk* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/drivers/block/
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/netfs/netfs* ] && \
 	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/netfs/* \
 		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/netfs/
-	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/9p/* \
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/9p/9p* ] && \
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/9p/9p* \
 		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/9p/
-	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/* \
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/fat.* ] && \
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/fat.* \
 		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/fat_test.* ] && \
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/fat_test.* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/msdos.* ] && \
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/msdos.* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/vfat.* ] && \
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/vfat.* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/fat/
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/squashfs/squashfs.* ] && \
 	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/squashfs/* \
 		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/squashfs/
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/overlayfs/overlay.* ] && \
 	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/fs/overlayfs/* \
 		lib/modules/${BUILD_KERNEL_VER}/kernel/fs/overlayfs/
-	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/9pnet{,_virtio}.ko \
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/9pnet.* ] && \
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/9pnet.* \
+		lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/
+	[ -e ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/9pnet_virtio.* ] && \
+	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/9pnet_virtio.* \
 		lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/
 	depmod -a -b . ${BUILD_KERNEL_VER}
 	cp -a ../squashfs/lib/{ld-,libc.so,libcrypt.so}* lib/
+	cp -a ../squashfs/lib/gcc/${CROSSDEV_TARGET}/*/libatomic.so* lib/
 	[ -e ../squashfs/lib/libm.so ] && cp -a ../squashfs/lib/libm.so* lib/
 	cp -a ../squashfs/lib/{libcrypto.so,libssl.so}* lib/
 	if [ -e ../squashfs/bin/wrmsr ]
@@ -1488,7 +1511,8 @@ then
 		cp -a ../squashfs/bin/{rd,wr}msr bin/
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
-	find . -print0 | cpio -0 -H newc -v -o | gzip --best > ../initramfs-${BUILD_DATE}
+	find . -print0 | cpio -0 -H newc -v -o \
+		$(echo "${CROSSDEV_TARGET}" | cut -d '-' -f 1 | grep -qv m68k && echo -n "| gzip --best") > ../initramfs-${BUILD_DATE}
 	cd ../linux
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 elif [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ] && \
@@ -1548,6 +1572,8 @@ then
 # copy final build kernel to output directory (x86_64 uefi)
 else
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	echo "${CROSSDEV_TARGET}" | cut -d '-' -f 1 | grep -q m68k && \
+	cp vmlinux "../${BUILD_NAME}-${BUILD_DATE}/kernel" || \
 	cp "arch/${BUILD_ARCH//_64/}/boot/bzImage" "../${BUILD_NAME}-${BUILD_DATE}/EFI/boot/bootx64.efi"
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
@@ -1631,5 +1657,11 @@ then
 else
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -r "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/${BUILD_NAME}-${BUILD_DATE}"/* "${BUILD_DEST}/"
+	if [ -e "${BUILD_DEST}/kernel" ]
+	then
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+		ln -s ../../kernel ${BUILD_DEST}/EFI/boot/bootx64.efi
+		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
+	fi
 fi
 CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"

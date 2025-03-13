@@ -1,0 +1,11 @@
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/982396619afc11cf09bc9016d282fcc403819a4f.patch
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/717acb22ac53b8ed932d089c82e32d4becda8238.patch
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/ebc57a38a9893548f4ed02979f2c6e8ddd130225.patch
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/2f728dcea95d3b1517b3cc35314277a8b79e6d5d.patch
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/7def6fc30486dc9e6ad32b4fa43b58f5ef92ffdc.patch
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/f9ae5f223289c76bd73f913ccf4ad2f97f19bd00.patch
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/56cca09b88a209137f4da295af0ff1edbf2f0f46.patch
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/1b7b561a513d9da38cec178724f6e3e671bb8329.patch
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/64be1910373790c1b568ba50c7d2ad702d768c63.patch
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/2ba9bae90061003c01b5269d7df4a55c29180fa1.patch
+https://gitlab.freedesktop.org/digetx/qemu/-/commit/286f743d2236a30e37de8a7789364af6232bc45a.patch

@@ -349,7 +349,7 @@ if [ "${FIRST_BUILD}" = "yes" ]
 then
 	#tar xjpf ../stage3*.bz2 --xattrs-include='*.*' --numeric-owner
 	#tar xjpf ../stage3*.bz2
-	tar xJpf ../stage3*.xz --xattrs-include='*.*' --numeric-owner
+	tar xJpf ../stage3*.xz$([ ! -h /bin/tar ] && echo -n " --xattrs-include='*.*'") --numeric-owner
 fi
 
 # setup chroot directory/mount structure
@@ -608,8 +608,9 @@ else
 	mkdir -p "${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
 	mkdir -p "${MNT_PATH}/m${BUILD_HELPER_TREE}/history"
 	mount -o bind "${BUILD_HELPER_TREE}/history" "${MNT_PATH}/m${BUILD_HELPER_TREE}/history"
-	mount --rbind . "${MNT_PATH}/m/media"
-	chroot "${MNT_PATH}/m" /bin/bash -c "cd /media && rsync -HAaX . ${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
+	mkdir -p "${MNT_PATH}/m/tmp/media"
+	mount --rbind . "${MNT_PATH}/m/tmp/media"
+	chroot "${MNT_PATH}/m" /bin/bash -c "cd /tmp/media && rsync -HAaX . ${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
 	#rsync -HAaX . "${BUILD_HELPER_TREE}/history/${BUILD_DATE}"
 fi
 cd

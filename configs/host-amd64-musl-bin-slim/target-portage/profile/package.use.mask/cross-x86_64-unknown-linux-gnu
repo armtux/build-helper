@@ -1,0 +1,5 @@
+cross-x86_64-unknown-linux-gnu/linux-headers  multilib
+cross-x86_64-unknown-linux-gnu/glibc  multilib
+cross-x86_64-unknown-linux-gnu/binutils  multilib
+cross-x86_64-unknown-linux-gnu/gcc  multilib
+cross-x86_64-unknown-linux-gnu/gdb  multilib

@@ -1,0 +1,5 @@
+cross-aarch64-gentoo-linux-musl/linux-headers  multilib
+cross-aarch64-gentoo-linux-musl/musl  multilib
+cross-aarch64-gentoo-linux-musl/binutils  multilib
+cross-aarch64-gentoo-linux-musl/gcc  multilib
+cross-aarch64-gentoo-linux-musl/gdb  multilib

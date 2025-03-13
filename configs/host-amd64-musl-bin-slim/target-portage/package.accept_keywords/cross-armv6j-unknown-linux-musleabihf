@@ -1,0 +1,5 @@
+cross-armv6j-unknown-linux-musleabihf/binutils arm ~arm -amd64 -~amd64
+cross-armv6j-unknown-linux-musleabihf/gcc arm ~arm -amd64 -~amd64
+cross-armv6j-unknown-linux-musleabihf/linux-headers arm ~arm -amd64 -~amd64
+cross-armv6j-unknown-linux-musleabihf/musl arm ~arm -amd64 -~amd64
+cross-armv6j-unknown-linux-musleabihf/gdb arm ~arm -amd64 -~amd64

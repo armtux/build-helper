@@ -1,0 +1,5 @@
+#sys-libs/musl ~amd64
+#sys-devel/gcc ~amd64
+#sys-devel/binutils ~amd64
+#sys-kernel/linux-headers ~amd64
+sys-kernel/gentoo-sources ~amd64

@@ -1,0 +1,15 @@
+app-misc/ca-certificates
+dev-libs/gmp
+dev-libs/mpc
+dev-libs/mpfr
+dev-libs/openssl
+sys-apps/debianutils
+sys-apps/findutils
+sys-apps/gentoo-functions
+sys-devel/gcc
+sys-devel/gcc-config
+sys-kernel/installkernel-gentoo
+sys-libs/libxcrypt
+sys-libs/zlib
+virtual/libiconv
+virtual/libintl

@@ -1,0 +1,6 @@
+dev-qt/qt5compat
+dev-qt/qtbase
+dev-qt/qtmultimedia
+dev-qt/qtsvg
+dev-qt/qttranslations
+dev-qt/qtwayland

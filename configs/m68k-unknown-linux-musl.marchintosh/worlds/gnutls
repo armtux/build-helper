@@ -1,0 +1,3 @@
+dev-libs/libgcrypt
+net-libs/gnutls
+sys-libs/libseccomp
