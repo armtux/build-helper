@@ -1,0 +1,4 @@
+dev-libs/libgcrypt
+dev-libs/libgpg-error
+net-libs/gnutls
+sys-libs/libseccomp

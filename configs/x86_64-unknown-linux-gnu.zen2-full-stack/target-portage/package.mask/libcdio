@@ -1,0 +1,2 @@
+# help2man tries to run binaries when cross-compiling
+=dev-libs/libcdio-2.4.0

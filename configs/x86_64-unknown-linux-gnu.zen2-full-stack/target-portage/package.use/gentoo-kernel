@@ -1,0 +1,2 @@
+sys-kernel/gentoo-kernel -initramfs
+sys-kernel/gentoo-kernel-bin -initramfs

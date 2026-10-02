@@ -1,0 +1,6 @@
+@system
+acct-user/root
+app-admin/sysklogd
+net-misc/dhcpcd
+sys-apps/locale-gen
+sys-kernel/linux-firmware

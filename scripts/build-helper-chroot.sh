@@ -29,6 +29,17 @@ set -x
 # exit on error
 set -e
 
+sigint_print_pid() {
+	echo
+	echo "CTRL+C has been detected and is disabled for the build's main script."
+	echo "however, the last run child process will be terminated instead."
+	echo "upon error, enter 'abort' if you wish to terminate the build."
+	CHROOT_ERROR_OLDNO=$1
+	CHROOT_ERROR_LASTNO=$2
+}
+
+trap 'sigint_print_pid $CHROOT_ERROR_LASTNO $LINENO' SIGINT
+
 # always set this to $LINENO below when entering main loops
 # also, set it back to '0' below when exiting said loops
 CHROOT_RESUME_LINENO="0"
@@ -278,11 +289,15 @@ then
 			mkdir -p /usr/${unique_target}/usr/lib
 			if $(echo "${BUILD_ARCH}" | grep -q '64')
 			then
-				ln -s lib /usr/${unique_target}/usr/lib64
-				ln -s usr/lib /usr/${unique_target}/lib64
+				#ln -s lib /usr/${unique_target}/usr/lib64
+				#ln -s usr/lib /usr/${unique_target}/lib64
+				mkdir -p /usr/${unique_target}/usr/lib64
+				ln -s usr/lib64 /usr/${unique_target}/lib64
 			else
-				ln -s lib /usr/${unique_target}/usr/lib32
-				ln -s usr/lib /usr/${unique_target}/lib32
+				#ln -s lib /usr/${unique_target}/usr/lib32
+				#ln -s usr/lib /usr/${unique_target}/lib32
+				mkdir -p /usr/${unique_target}/usr/lib32
+				ln -s usr/lib32 /usr/${unique_target}/lib32
 			fi
 			ln -s usr/lib /usr/${unique_target}/lib
 			mkdir /usr/${unique_target}/usr/bin
@@ -391,12 +406,12 @@ then
 			fi
 			unset VIDEO_CARDS
 
-			if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -lt "1" ]
+			if [ "$(grep -e 'sys-apps/(toy|busy)box' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ]
 			then
 				CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-				sed -i -e 's/^INSTALL_MASK/#INSTALL_MASK/' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/make.conf
+				sed -i -e 's/^INSTALL_MASK/#INSTALL_MASK/' /usr/${unique_target}.skeleton/etc/portage/make.conf
 				#sed -i -e 's@^sys-devel/gcc@#sys-devel/gcc@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.env/gcc
-				sed -i -e 's@^INSTALL_MASK@#INSTALL_MASK@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/env/sys-devel/gcc
+				sed -i -e 's@^INSTALL_MASK@#INSTALL_MASK@' /usr/${unique_target}.skeleton/etc/portage/env/sys-devel/gcc
 				CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 			fi
 
@@ -604,7 +619,7 @@ fi
 if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided.kernel" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	mv "${BUILD_CONF}/target-portage/profile/package.provided.kernel" "${BUILD_CONF}/target-portage/profile/package.provided"
+	cp "${BUILD_CONF}/target-portage/profile/package.provided.kernel" "${BUILD_CONF}/target-portage/profile/package.provided"
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ] && \
@@ -619,10 +634,11 @@ CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 	--sysroot=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} -ukq --with-bdeps=y `cat ${BUILD_CONF}/worlds/kernel`
 CHROOT_RESUME_LINENO="0"
-if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided" ]
+if [ "$(grep '@system' ${BUILD_CONF}/worlds/base | wc -l)" -gt "0" ] && [ -e "${BUILD_CONF}/target-portage/profile/package.provided.kernel" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-	mv "${BUILD_CONF}/target-portage/profile/package.provided" "${BUILD_CONF}/target-portage/profile/package.provided.kernel"
+	#mv "${BUILD_CONF}/target-portage/profile/package.provided" "${BUILD_CONF}/target-portage/profile/package.provided.kernel"
+	rm "${BUILD_CONF}/target-portage/profile/package.provided"
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
 
@@ -650,13 +666,18 @@ then
 	rm /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 fi
-CHROOT_RESUME_LINENO="$LINENO"
-ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/`ls -1v /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src | grep linux- | tail -n 1` \
-	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
-CHROOT_RESUME_LINENO="0"
+#CHROOT_RESUME_LINENO="$LINENO"
+#if [ ! -d /usr/src ]
+#then
+	ln -s /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/`ls -1v /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src | grep linux- | tail -n 1` \
+		/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
+#else
+#	mkdir -p /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
+#fi
+#CHROOT_RESUME_LINENO="0"
 
 cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
-if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+if [ "`grep -E 'sys-kernel/(gentoo-kernel|raspberrypi-image)' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	# use target kernel .config
@@ -731,6 +752,7 @@ fi
 
 # build pam with different USE flags to avoid circular dependency
 sed -i -e 's@^#sys-libs/pam@sys-libs/pam@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.use/pam
+sed -i -e 's@^#sys-auth/pam@sys-auth/pam@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.use/pam
 
 CHROOT_RESUME_LINENO="$LINENO"
 ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
@@ -738,6 +760,7 @@ ${CROSSDEV_TARGET}-emerge --root=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} \
 CHROOT_RESUME_LINENO="0"
 
 sed -i -e 's@^sys-libs/pam@#sys-libs/pam@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.use/pam
+sed -i -e 's@^sys-auth/pam@#sys-auth/pam@' /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/etc/portage/package.use/pam
 
 CHROOT_RESUME_LINENO="$LINENO"
 # order/sort extra package containers by dependency on one another
@@ -788,8 +811,9 @@ CHROOT_RESUME_LINENO="0"
 export WORLD_TREE="${WORLD_TREE}"
 
 # modify target ldd for use with gobject-introspection qemu wrapper
-sed -i -e 's/x $rtld/x ${ROOT}$rtld/' -e 's/${rtld} --verify/${ROOT}${rtld} --verify/' -e 's/RTLD=${rtld}/RTLD=${ROOT}${rtld}/' \
-	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/bin/ldd
+# not required anymore
+#sed -i -e 's/x $rtld/x ${ROOT}$rtld/' -e 's/${rtld} --verify/${ROOT}${rtld} --verify/' -e 's/RTLD=${rtld}/RTLD=${ROOT}${rtld}/' \
+#	/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/bin/ldd
 
 # build / update crossdev target world
 CHROOT_RESUME_LINENO="$LINENO"
@@ -805,7 +829,7 @@ ROOT=/usr/${CROSSDEV_TARGET}.${BUILD_NAME} SYSROOT=/usr/${CROSSDEV_TARGET}.${BUI
 CHROOT_RESUME_LINENO="0"
 
 # prepare sources for emerge checks (again?)
-if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+if [ "`grep -E 'sys-kernel/(gentoo-kernel|raspberrypi-image)' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make modules_prepare
@@ -847,12 +871,16 @@ then
 	if $(echo "${BUILD_ARCH}" | grep -q '64')
 	then
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-		ln -s lib ../squashfs/usr/lib64
-		ln -s usr/lib ../squashfs/lib64
+		#ln -s lib ../squashfs/usr/lib64
+		#ln -s usr/lib ../squashfs/lib64
+		mkdir -p ../squashfs/usr/lib64
+		ln -s usr/lib64 ../squashfs/lib64
 	else
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
-		ln -s lib ../squashfs/usr/lib32
-		ln -s usr/lib ../squashfs/lib32
+		#ln -s lib ../squashfs/usr/lib32
+		#ln -s usr/lib ../squashfs/lib32
+		mkdir -p ../squashfs/usr/lib32
+		ln -s usr/lib32 ../squashfs/lib32
 	fi
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	ln -s usr/lib ../squashfs/lib
@@ -1112,11 +1140,15 @@ do
 		mkdir -p ../squashfs.${world_img}/usr/lib
 		if $(echo "${BUILD_ARCH}" | grep -q '64')
 		then
-			ln -s lib ../squashfs.${world_img}/usr/lib64
-			ln -s usr/lib ../squashfs.${world_img}/lib64
+			#ln -s lib ../squashfs.${world_img}/usr/lib64
+			#ln -s usr/lib ../squashfs.${world_img}/lib64
+			mkdir -p ../squashfs.${world_img}/usr/lib64
+			ln -s usr/lib64 ../squashfs.${world_img}/lib64
 		else
-			ln -s lib ../squashfs.${world_img}/usr/lib32
-			ln -s usr/lib ../squashfs.${world_img}/lib32
+			#ln -s lib ../squashfs.${world_img}/usr/lib32
+			#ln -s usr/lib ../squashfs.${world_img}/lib32
+			mkdir -p ../squashfs.${world_img}/usr/lib32
+			ln -s usr/lib32 ../squashfs.${world_img}/lib32
 		fi
 		ln -s usr/lib ../squashfs.${world_img}/lib
 		mkdir ../squashfs.${world_img}/usr/bin
@@ -1361,7 +1393,7 @@ cp -a /dev/null /dev/console /dev/tty /dev/tty1 /dev/random /dev/urandom \
 # build crossdev target kernel and install modules in final build directory
 # TODO: remove old kernel modules (done?)
 cd /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/usr/src/linux
-if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+if [ "`grep -E 'sys-kernel/(gentoo-kernel|raspberrypi-image)' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	ARCH=${BUILD_ARCH} CROSS_COMPILE=${CROSSDEV_TARGET}- make -j${BUILD_JOBS}
@@ -1501,18 +1533,19 @@ then
 	cp -a ../squashfs/lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/9pnet_virtio.* \
 		lib/modules/${BUILD_KERNEL_VER}/kernel/net/9p/
 	depmod -a -b . ${BUILD_KERNEL_VER}
-	cp -a ../squashfs/lib/{ld-,libc.so,libcrypt.so}* lib/
+	[ -e ../squashfs/lib/libc.so ] && cp -a ../squashfs/lib/{ld-,libc.so,libcrypt.so}* lib/
+	[ -e ../squashfs/lib64/libc.so ] && cp -a ../squashfs/lib64/{ld-,libc.so,libcrypt.so}* lib/
 	cp -a ../squashfs/lib/gcc/${CROSSDEV_TARGET}/*/libatomic.so* lib/
 	[ -e ../squashfs/lib/libm.so ] && cp -a ../squashfs/lib/libm.so* lib/
-	cp -a ../squashfs/lib/{libcrypto.so,libssl.so}* lib/
+	[ -e ../squashfs/lib/libcrypto.so ] && cp -a ../squashfs/lib/{libcrypto.so,libssl.so}* lib/
+	[ -e ../squashfs/lib64/libcrypto.so ] && cp -a ../squashfs/lib64/{libcrypto.so,libssl.so}* lib/
 	if [ -e ../squashfs/bin/wrmsr ]
 	then
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 		cp -a ../squashfs/bin/{rd,wr}msr bin/
 		CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 	fi
-	find . -print0 | cpio -0 -H newc -v -o \
-		$(echo "${CROSSDEV_TARGET}" | cut -d '-' -f 1 | grep -qv m68k && echo -n "| gzip --best") > ../initramfs-${BUILD_DATE}
+	find . -print0 | cpio -0 -H newc -v -o | gzip --best > ../initramfs-${BUILD_DATE}
 	cd ../linux
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} - 1))"
 elif [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" = "1" ] && \
@@ -1569,6 +1602,23 @@ then
 		cp arch/${BUILD_ARCH}/boot/dts/*.dtb ../${BUILD_NAME}-${BUILD_DATE}/boot/
 		cp "arch/${BUILD_ARCH}/boot/zImage" "../${BUILD_NAME}-${BUILD_DATE}/boot/kernel.img"
 	fi
+# copy final build kernel and boot files to output directory (sys-kernel/raspberrypi-image)
+elif [ "`grep 'sys-kernel/raspberrypi-image' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
+then
+	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
+	if [ ! -e ../${BUILD_NAME}-${BUILD_DATE}/boot/overlays ]
+	then
+		mkdir -p ../${BUILD_NAME}-${BUILD_DATE}/boot/overlays
+	fi
+	cp /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/boot/overlays/*.dtbo ../${BUILD_NAME}-${BUILD_DATE}/boot/overlays/
+	if [ "${BUILD_ARCH}" = "arm64" ]
+	then
+		cp /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/boot/*.dtb ../${BUILD_NAME}-${BUILD_DATE}/boot/
+		cp "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/boot/kernel8.img" "../${BUILD_NAME}-${BUILD_DATE}/boot/kernel8.img"
+	else
+		cp /usr/${CROSSDEV_TARGET}.${BUILD_NAME}/boot/*.dtb ../${BUILD_NAME}-${BUILD_DATE}/boot/
+		cp "/usr/${CROSSDEV_TARGET}.${BUILD_NAME}/boot/kernel.img" "../${BUILD_NAME}-${BUILD_DATE}/boot/kernel.img"
+	fi
 # copy final build kernel to output directory (x86_64 uefi)
 else
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
@@ -1583,7 +1633,7 @@ if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.base
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	# raspberry pi location
-	if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
+	if [ "`grep -E 'sys-kernel/raspberrypi-(sources|image)' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 	then
 		cp ../base-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/boot/base
 	# x86_64 uefi location
@@ -1600,7 +1650,7 @@ do
 	if [ -e ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/split.extra ]
 	then
 		# raspberry pi location
-		if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
+		if [ "`grep -E 'sys-kernel/raspberrypi-(sources|image)' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 		then
 			cp ../${world_img}-${BUILD_DATE} ../${BUILD_NAME}-${BUILD_DATE}/boot/${world_img}
 		# x86_64 uefi location
@@ -1620,7 +1670,7 @@ fi
 
 # fully clean kernel source directory (required for some kernel security features)
 # TODO: add option to skip cleanup (done?)
-if [ "`grep 'sys-kernel/gentoo-kernel' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
+if [ "`grep -E 'sys-kernel/(gentoo-kernel|raspberrypi-image)' ${BUILD_CONF}/worlds/kernel | wc -l`" != "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	if [ ! -e ${BUILD_CONF}/skip.mrproper ]
@@ -1640,7 +1690,7 @@ fi
 # TODO: Implement for non-uefi and other architectures
 mkdir -p "${BUILD_DEST}"
 # raspberry pi support
-if [ "`grep 'sys-kernel/raspberrypi-sources' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
+if [ "`grep -E 'sys-kernel/raspberrypi-(sources|image)' ${BUILD_HELPER_TREE}/configs/${CROSSDEV_TARGET}.${BUILD_NAME}/worlds/kernel | wc -l`" = "1" ]
 then
 	CHROOT_RESUME_DEPTH="$((${CHROOT_RESUME_DEPTH} + 1))"
 	cp -r ../${BUILD_NAME}-${BUILD_DATE}/boot ${BUILD_DEST}/boot

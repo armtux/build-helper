@@ -1,0 +1,6 @@
+virtual/opengl-8
+
+#kernel
+virtual/linux-sources-3-r8
+
+x11-libs/libX11-1.8.10-r1

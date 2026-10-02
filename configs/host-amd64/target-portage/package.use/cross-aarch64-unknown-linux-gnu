@@ -1,0 +1,4 @@
+cross-aarch64-unknown-linux-gnu/binutils -multilib
+cross-aarch64-unknown-linux-gnu/linux-headers -selinux headers-only -multilib
+cross-aarch64-unknown-linux-gnu/glibc static-libs -selinux -libraries -multilib
+cross-aarch64-unknown-linux-gnu/gcc -vtv -selinux -objc -objc++ -objc-gc -vtv -sanitize -multilib

@@ -1,0 +1,12 @@
+diff '--color=auto' -urN old/src/CMakeLists.txt new/src/CMakeLists.txt
+--- old/src/CMakeLists.txt	2026-04-05 01:04:57.031005494 +0000
++++ new/src/CMakeLists.txt	2026-04-05 01:05:15.353627998 +0000
+@@ -33,7 +33,7 @@
+     PUBLIC_HEADER "${CMAKE_SOURCE_DIR}/include/opencsg.h" 
+ )
+ 
+-find_package(OpenGL REQUIRED)
++find_package(OpenGL)
+ 
+ install(TARGETS opencsg
+     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

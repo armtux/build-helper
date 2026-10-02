@@ -1,0 +1,5 @@
+[gnu-local-rpi4b-full-stack]
+location = /var/db/repos/portage-gnu-rpi4b-full-stack
+priority = 10
+masters = gentoo
+auto-sync = no

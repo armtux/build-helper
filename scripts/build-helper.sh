@@ -326,17 +326,20 @@ then
 elif [ "${BUILD_HIST}" = "" ]
 then
 	export FIRST_BUILD="yes"
-	TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | grep xz | cut -d ' ' -f 1`"
-	#TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-nomultilib-openrc.txt | grep xz | cut -d ' ' -f 1`"
-	curl -O ${TARBALL_LINK}.asc -O ${TARBALL_LINK}.DIGESTS -O ${TARBALL_LINK}
-	#curl -O ${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1` -O ${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1`.DIGESTS.asc
 	if [ -e /usr/share/openpgp-keys/gentoo-release.asc ]
 	then
 		gpg --import /usr/share/openpgp-keys/gentoo-release.asc
 	else
 		gpg --keyserver hkps://keys.gentoo.org --recv-keys 13EBBDBEDE7A12775DFDB1BABB572E0E2D182910
 	fi
-	gpg --verify stage3*.asc && gpg --verify stage3*.DIGESTS && grep -A 1 SHA512 stage3*.DIGESTS | grep -e 'xz$' | sha512sum -c || (echo "stage3 integrity check failed." && exit)
+	curl -o tarball-path.txt ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt
+	gpg --verify tarball-path.txt || (echo "stage3 path text file integrity check failed." && exit)
+	TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`cat tarball-path.txt | grep '.tar.xz' | cut -d ' ' -f 1`"
+	#TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | grep '.xz' | cut -d ' ' -f 1`"
+	#TARBALL_LINK="${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-nomultilib-openrc.txt | grep xz | cut -d ' ' -f 1`"
+	curl -C - -O ${TARBALL_LINK}.asc -O ${TARBALL_LINK}.DIGESTS -O ${TARBALL_LINK}
+	#curl -O ${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1` -O ${TARBALL_MIRROR}/releases/amd64/autobuilds/`curl -s ${TARBALL_MIRROR}/releases/amd64/autobuilds/latest-stage3-amd64-musl-hardened.txt | tail -n 1 | cut -d ' ' -f 1`.DIGESTS.asc
+	gpg --verify stage3*.asc && gpg --verify stage3*.DIGESTS && grep -A 1 SHA512 stage3*.DIGESTS | grep -e 'xz$' | sha512sum -c || (echo "stage3 tarball integrity check failed." && exit)
 	#gpg --verify stage3*.asc && grep -A 1 SHA512 stage3*.asc | grep -e 'bz2$' | sha512sum -c || (echo "stage3 integrity check failed." && exit)
 else
 	mount -t squashfs ${BUILD_HIST} s

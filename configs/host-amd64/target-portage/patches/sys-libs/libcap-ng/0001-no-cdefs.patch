@@ -1,0 +1,12 @@
+diff '--color=auto' -urN a/utils/gcc-attributes.h b/utils/gcc-attributes.h
+--- a/utils/gcc-attributes.h	2026-08-21 03:06:03.000000000 +0000
++++ b/utils/gcc-attributes.h	2026-09-27 02:34:45.255646643 +0000
+@@ -4,8 +4,6 @@
+ #ifndef GCC_ATTRIBUTES_H
+ #define GCC_ATTRIBUTES_H
+ 
+-#include <sys/cdefs.h>
+-
+ /* These macros originate in sys/cdefs.h. Stub them when unavailable. */
+ #ifndef __returns_nonnull
+ # define __returns_nonnull

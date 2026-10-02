@@ -1,0 +1,5 @@
+[gnu-local-mbp-full-stack]
+location = /var/db/repos/portage-gnu-mbp-full-stack
+priority = 10
+masters = gentoo
+auto-sync = no

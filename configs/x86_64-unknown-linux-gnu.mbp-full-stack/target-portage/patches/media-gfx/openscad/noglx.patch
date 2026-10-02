@@ -1,0 +1,12 @@
+diff '--color=auto' -urN old/CMakeLists.txt new/CMakeLists.txt
+--- old/CMakeLists.txt	2026-04-05 01:08:36.791664754 +0000
++++ new/CMakeLists.txt	2026-04-05 01:09:56.080276759 +0000
+@@ -461,7 +461,7 @@
+       set(GLEW_SOURCES src/glview/glew-utils.cc)
+     endif()
+ 
+-    find_package(OpenGL REQUIRED QUIET)
++    find_package(OpenGL QUIET)
+     target_link_libraries(OpenSCADLibInternal PUBLIC ${OPENGL_LIBRARIES})
+     message(STATUS "OpenGL: ${OPENGL_LIBRARIES}")
+   endif()

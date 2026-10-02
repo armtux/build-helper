@@ -1,0 +1,14 @@
+diff '--color=auto' -urN old/src/meson.build new/src/meson.build
+--- old/src/meson.build	2026-04-04 19:30:28.386651099 +0000
++++ new/src/meson.build	2026-04-04 19:30:53.670425995 +0000
+@@ -197,8 +197,8 @@
+ if xxhash.found()
+   if xxhash.type_name() == 'internal'
+     build_deps += xxhash
+-  else
+-    inc_dirs += xxhash.get_variable('includedir')
++#  else
++#    inc_dirs += xxhash.get_variable('includedir')
+   endif
+ endif
+ 

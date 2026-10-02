@@ -1,0 +1,8 @@
+@system
+acct-user/root
+app-admin/sysklogd
+net-misc/dhcpcd
+sys-apps/locale-gen
+sys-apps/msr-tools
+sys-firmware/intel-microcode
+sys-kernel/linux-firmware

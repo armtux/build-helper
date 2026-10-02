@@ -1,0 +1,4 @@
+app-admin/doas
+app-editors/vim
+app-misc/tmux
+sys-process/htop

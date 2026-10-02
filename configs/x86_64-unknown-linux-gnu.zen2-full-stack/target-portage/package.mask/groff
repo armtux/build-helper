@@ -1,0 +1,2 @@
+# tries to run tests while cross-compiling
+=sys-apps/groff-1.24.2

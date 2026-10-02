@@ -1,0 +1,3 @@
+FEATURES="-multilib-strict"
+QMAKE_CXXFLAGS="-mdirect-extern-access"
+QMAKE_CFLAGS="-mdirect-extern-access"

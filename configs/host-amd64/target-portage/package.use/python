@@ -1,2 +1,1 @@
-#*/* PYTHON_TARGETS: -* python3_11
-#*/* PYTHON_SINGLE_TARGET: -* python3_11
+#*/* python_targets_python3_13
